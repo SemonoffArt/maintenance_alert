@@ -21,6 +21,8 @@ RECIPIENTS = [
     # Добавьте нужные email адреса
 ]
 
+
+
 def read_excel_data():
     """Читает данные из Excel файла с учетом конкретных диапазонов"""
     urgent_items = []
