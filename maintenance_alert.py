@@ -138,9 +138,9 @@ def create_email_body(urgent_items, warning_items, total_records, status_counts)
     body = f"📊 СТАТИСТИКА:\n\n"
     body += f"  СРОЧНО: {status_counts['СРОЧНО']}\n"
     body += f"  Внимание: {status_counts['Внимание']}\n"
-    body += f"  В норме: {status_counts['В норме']}\n"
+    body += f"  Не требуется: {status_counts['В норме']}\n"
     body += f"  Всего: {total_records}\n"
-    body += f"  Необслуженное: {unserviced_count} ({unserviced_percentage:.1f}%)\n\n"
+    body += f"  Необслужено: {unserviced_count} ({unserviced_percentage:.1f}%)\n\n"
     
     if urgent_items:
         total_urgent = sum(len(df) for df in urgent_items)
