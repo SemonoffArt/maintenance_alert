@@ -7,7 +7,7 @@ from pathlib import Path
 import sys
 
 # Версия программы
-VERSION = "0.9.4"
+VERSION = "0.9.5"
 RELEASE_DATE = "10.08.2025"
 PROGRAM_DIR = Path(__file__).parent.absolute()
 
@@ -40,8 +40,10 @@ def show_version():
 
 def read_excel_data():
     """Читает данные из Excel файла с учетом конкретных диапазонов"""
-    urgent_items = []
+    alarm_items = []
     warning_items = []
+    total_records = 0
+    status_counts = {"СРОЧНО": 0, "Внимание": 0, "В норме": 0}
     
     # Названия колонок (должны соответствовать заголовкам в строке 4)
     column_names = [
@@ -58,7 +60,7 @@ def read_excel_data():
             df = pd.read_excel(
                 EXCEL_FILE, 
                 sheet_name=sheet_name,
-                header=2,  # Заголовки в строке 4 (индекс 3)
+                header=3,  # Заголовки в строке 4 (индекс 3)
                 nrows=500  # Максимальное количество строк
             )
             
@@ -72,6 +74,13 @@ def read_excel_data():
             # Удаляем пустые строки
             df = df.dropna(how='all')
             
+            # Подсчитываем общее количество записей
+            total_records += len(df)
+            
+            # Подсчитываем статусы
+            for status in status_counts.keys():
+                status_counts[status] += len(df[df['Статус'] == status])
+            
             # Проверяем статусы
             urgent = df[df['Статус'] == 'СРОЧНО']
             warning = df[df['Статус'] == 'Внимание']
@@ -82,7 +91,7 @@ def read_excel_data():
             if not urgent.empty:
                 urgent = urgent.copy()
                 urgent['Тип'] = sheet_name
-                urgent_items.append(urgent)
+                alarm_items.append(urgent)
             
             if not warning.empty:
                 warning = warning.copy()
@@ -92,7 +101,17 @@ def read_excel_data():
         except Exception as e:
             print(f"Ошибка при чтении листа {sheet_name}: {e}")
     
-    return urgent_items, warning_items
+    return alarm_items, warning_items, total_records, status_counts
+
+
+def format_date(date_value):
+    """Форматирует дату в формат dd.mm.yyyy"""
+    if pd.notna(date_value) and hasattr(date_value, 'strftime'):
+        return date_value.strftime('%d.%m.%Y')
+    elif pd.notna(date_value):
+        return str(date_value)
+    else:
+        return "Не указана"
 
 
 def format_item_info(item, item_type):
@@ -104,20 +123,28 @@ def format_item_info(item, item_type):
 Обозначение: {item['Обозначение']}
 Место расположения: {item['Место расположения']}
 Интервал ТО (дней): {item['Интервал ТО (дней)']}
-Дата последнего ТО: {item['Дата последнего ТО']}
-Дата следующего ТО: {item['Дата следующего ТО']}
+Дата последнего ТО: {format_date(item['Дата последнего ТО'])}
+Дата следующего ТО: {format_date(item['Дата следующего ТО'])}
 Статус: {item['Статус']}
 """
     return info
 
 
-def create_email_body(urgent_items, warning_items):
+def create_email_body(urgent_items, warning_items, total_records, status_counts):
     """Создает тело письма"""
-    body = "🔔 Напоминание о техническом обслуживании\n\n"
+    # Вычисляем процент необслуженного оборудования
+    unserviced_count = status_counts['СРОЧНО'] + status_counts['Внимание']
+    unserviced_percentage = (unserviced_count / total_records * 100) if total_records > 0 else 0
+    body = f"📊 Статистика:\n"
+    body += f"  СРОЧНО: {status_counts['СРОЧНО']}\n"
+    body += f"  Внимание: {status_counts['Внимание']}\n"
+    body += f"  В норме: {status_counts['В норме']}\n"
+    body += f"  Всего записей: {total_records}\n"
+    body += f"  Необслуженное: {unserviced_count} ({unserviced_percentage:.1f}%)\n\n"
     
     if urgent_items:
         total_urgent = sum(len(df) for df in urgent_items)
-        body += f"🚨 СРОЧНОЕ ОБСЛУЖИВАНИЕ (Количество записей: {total_urgent}):\n"
+        body += f"🚨 СРОЧНОЕ ОБСЛУЖИВАНИЕ (записей: {total_urgent}):\n"
         body += "=" * 50 + "\n"
         for urgent_df in urgent_items:
             for _, item in urgent_df.iterrows():
@@ -126,17 +153,17 @@ def create_email_body(urgent_items, warning_items):
     
     if warning_items:
         total_warning = sum(len(df) for df in warning_items)
-        body += f"\n⚠️ ВНИМАНИЕ (приближается срок обслуживания) (Количество записей: {total_warning}):\n"
+        body += f"\n⚠️ ВНИМАНИЕ! Приближается срок обслуживания. (записей: {total_warning}):\n"
         body += "=" * 50 + "\n"
         for warning_df in warning_items:
             for _, item in warning_df.iterrows():
                 body += format_item_info(item, item['Тип'])
                 body += "-" * 30 + "\n"
-    
+
     body += f"\n\nСообщение сформировано: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}."
     body += f"\n\nТаблица обслуживания и скрипт рассылки расположены на файловом сервере в: '{PROGRAM_DIR}'."
     body += f"\nСкрипт вызывается по расписанию, на файловом сервере, в Windows Task Scheduler (правило 'maintenance_alert.py')"
-    body += f"\n\nПеречень получателей: {', '.join(RECIPIENTS)}"
+    body += f"\n\nСписок получателей: {', '.join(RECIPIENTS)}"
     body += f"\n\n🔧 v{VERSION} от {RELEASE_DATE}"
     
     return body
@@ -175,7 +202,7 @@ def main():
     print(f"Получатели: {', '.join(RECIPIENTS)}")
     
     # Читаем данные из Excel
-    urgent_items, warning_items = read_excel_data()
+    urgent_items, warning_items, total_records, status_counts = read_excel_data()
     
     # Проверяем, есть ли элементы, требующие внимания
     total_urgent = sum(len(df) for df in urgent_items) if urgent_items else 0
@@ -190,7 +217,7 @@ def main():
         return
     
     # Формируем тело письма
-    email_body = create_email_body(urgent_items, warning_items)
+    email_body = create_email_body(urgent_items, warning_items, total_records, status_counts)
     print("\nСформировано письмо:")
     print("-" * 50)
     print(email_body)
