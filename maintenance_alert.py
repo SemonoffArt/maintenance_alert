@@ -82,16 +82,16 @@ def read_excel_data():
                 status_counts[status] += len(df[df['Статус'] == status])
             
             # Проверяем статусы
-            urgent = df[df['Статус'] == 'СРОЧНО']
+            alarm = df[df['Статус'] == 'СРОЧНО']
             warning = df[df['Статус'] == 'Внимание']
             
-            print(f"  Найдено СРОЧНО: {len(urgent)}, Внимание: {len(warning)}")
+            print(f"  Найдено СРОЧНО: {len(alarm)}, Внимание: {len(warning)}")
             
             # Добавляем тип оборудования
-            if not urgent.empty:
-                urgent = urgent.copy()
-                urgent['Тип'] = sheet_name
-                alarm_items.append(urgent)
+            if not alarm.empty:
+                alarm = alarm.copy()
+                alarm['Тип'] = sheet_name
+                alarm_items.append(alarm)
             
             if not warning.empty:
                 warning = warning.copy()
@@ -135,11 +135,11 @@ def create_email_body(urgent_items, warning_items, total_records, status_counts)
     # Вычисляем процент необслуженного оборудования
     unserviced_count = status_counts['СРОЧНО'] + status_counts['Внимание']
     unserviced_percentage = (unserviced_count / total_records * 100) if total_records > 0 else 0
-    body = f"📊 Статистика:\n"
+    body = f"📊 СТАТИСТИКА:\n\n"
     body += f"  СРОЧНО: {status_counts['СРОЧНО']}\n"
     body += f"  Внимание: {status_counts['Внимание']}\n"
     body += f"  В норме: {status_counts['В норме']}\n"
-    body += f"  Всего записей: {total_records}\n"
+    body += f"  Всего: {total_records}\n"
     body += f"  Необслуженное: {unserviced_count} ({unserviced_percentage:.1f}%)\n\n"
     
     if urgent_items:
