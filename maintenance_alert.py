@@ -7,15 +7,15 @@ from pathlib import Path
 import sys
 
 # Версия программы
-VERSION = "0.9.2"
-RELEASE_DATE = "09.08.2025"
+VERSION = "0.9.4"
+RELEASE_DATE = "10.08.2025"
+PROGRAM_DIR = Path(__file__).parent.absolute()
 
 # Настройки
-PROGRAM_DIR = Path(__file__).parent.absolute()
-EXCEL_FILE =  PROGRAM_DIR  / "Обслуживание ПК и шкафов АСУТП.xlsx"
+EXCEL_FILE = PROGRAM_DIR / "Обслуживание ПК и шкафов АСУТП.xlsx"
 SHEETS_CONFIG = {
-    "ПК АСУ ТП": {"range": "A4:J100"},
-    "Шкафы АСУ ТП": {"range": "A4:J250"}
+    "ПК АСУ ТП": {"range": "A4:J300"},
+    "Шкафы АСУ ТП": {"range": "A4:J300"}
 }
 SMTP_SERVER = "mgd-ex1.pavlik-gold.ru"
 SMTP_PORT = 25
@@ -24,10 +24,11 @@ SENDER_EMAIL = "maintenance.asutp@pavlik-gold.ru"  # Укажите ваш email
 # Список получателей
 RECIPIENTS = [
     "asutp@pavlik-gold.ru",
-    # "ochkur.evgeniy@pavlik-gold.ru",
-    # "dorovik.roman@pavlik-gold.ru",
+    #  "ochkur.evgeniy@pavlik-gold.ru",
+    #  "dorovik.roman@pavlik-gold.ru",
     # Добавьте нужные email адреса
 ]
+
 
 def show_version():
     """Отображает информацию о версии программы"""
@@ -93,6 +94,7 @@ def read_excel_data():
     
     return urgent_items, warning_items
 
+
 def format_item_info(item, item_type):
     """Форматирует информацию об элементе"""
     info = f"""
@@ -108,12 +110,14 @@ def format_item_info(item, item_type):
 """
     return info
 
+
 def create_email_body(urgent_items, warning_items):
     """Создает тело письма"""
     body = "🔔 Напоминание о техническом обслуживании\n\n"
     
     if urgent_items:
-        body += "🚨 СРОЧНОЕ ОБСЛУЖИВАНИЕ:\n"
+        total_urgent = sum(len(df) for df in urgent_items)
+        body += f"🚨 СРОЧНОЕ ОБСЛУЖИВАНИЕ (Количество записей: {total_urgent}):\n"
         body += "=" * 50 + "\n"
         for urgent_df in urgent_items:
             for _, item in urgent_df.iterrows():
@@ -121,7 +125,8 @@ def create_email_body(urgent_items, warning_items):
                 body += "-" * 30 + "\n"
     
     if warning_items:
-        body += "\n⚠️ ВНИМАНИЕ (приближается срок обслуживания):\n"
+        total_warning = sum(len(df) for df in warning_items)
+        body += f"\n⚠️ ВНИМАНИЕ (приближается срок обслуживания) (Количество записей: {total_warning}):\n"
         body += "=" * 50 + "\n"
         for warning_df in warning_items:
             for _, item in warning_df.iterrows():
@@ -133,11 +138,9 @@ def create_email_body(urgent_items, warning_items):
     body += f"\nСкрипт вызывается по расписанию, на файловом сервере, в Windows Task Scheduler (правило 'maintenance_alert.py')"
     body += f"\n\nПеречень получателей: {', '.join(RECIPIENTS)}"
     body += f"\n\n🔧 v{VERSION} от {RELEASE_DATE}"
-
-
-    
     
     return body
+
 
 def send_email(body, recipients):
     """Отправляет email через SMTP нескольким получателям"""
@@ -167,7 +170,7 @@ def send_email(body, recipients):
 
 
 def main():
-    """Основная функция"""
+    """Эта функция выполняется первоначально в программе"""
     print("Начинаем проверку графика технического обслуживания...")
     print(f"Получатели: {', '.join(RECIPIENTS)}")
     
@@ -199,7 +202,6 @@ def main():
         print("Письма отправлены успешно")
     else:
         print("Не удалось отправить письма")
-    
 
 
 if __name__ == "__main__":
