@@ -7,7 +7,7 @@ from pathlib import Path
 import sys
 
 # Версия программы
-VERSION = "0.9.5"
+VERSION = "0.9.6"
 RELEASE_DATE = "10.08.2025"
 PROGRAM_DIR = Path(__file__).parent.absolute()
 
@@ -197,27 +197,27 @@ def send_email(body, recipients):
 
 
 def main():
-    """Эта функция выполняется первоначально в программе"""
+    """Эта функция выполняется первой в программе"""
     print("Начинаем проверку графика технического обслуживания...")
     print(f"Получатели: {', '.join(RECIPIENTS)}")
     
     # Читаем данные из Excel
-    urgent_items, warning_items, total_records, status_counts = read_excel_data()
+    alarm_items, warning_items, total_records, status_counts = read_excel_data()
     
     # Проверяем, есть ли элементы, требующие внимания
-    total_urgent = sum(len(df) for df in urgent_items) if urgent_items else 0
+    total_alarm = sum(len(df) for df in alarm_items) if alarm_items else 0
     total_warning = sum(len(df) for df in warning_items) if warning_items else 0
     
     print(f"\nИтого найдено:")
-    print(f"  СРОЧНО: {total_urgent}")
+    print(f"  СРОЧНО: {total_alarm}")
     print(f"  Внимание: {total_warning}")
     
-    if total_urgent == 0 and total_warning == 0:
+    if total_alarm == 0 and total_warning == 0:
         print("Нет срочных напоминаний. Все оборудование в порядке.")
         return
     
     # Формируем тело письма
-    email_body = create_email_body(urgent_items, warning_items, total_records, status_counts)
+    email_body = create_email_body(alarm_items, warning_items, total_records, status_counts)
     print("\nСформировано письмо:")
     print("-" * 50)
     print(email_body)
