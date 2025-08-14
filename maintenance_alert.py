@@ -1,18 +1,20 @@
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from pathlib import Path
 import sys
+import json
 
 # Версия программы
-VERSION = "0.9.6"
-RELEASE_DATE = "10.08.2025"
+VERSION = "0.9.10"
+RELEASE_DATE = "14.08.2025"
 PROGRAM_DIR = Path(__file__).parent.absolute()
 
 # Настройки
 EXCEL_FILE = PROGRAM_DIR / "Обслуживание ПК и шкафов АСУТП.xlsx"
+CONFIG_FILE = PROGRAM_DIR / "maintenance_alert_conf.json"
 SHEETS_CONFIG = {
     "ПК АСУ ТП": {"range": "A4:J300"},
     "Шкафы АСУ ТП": {"range": "A4:J300"}
@@ -36,6 +38,147 @@ def show_version():
     print(f"📅 Дата выпуска: {RELEASE_DATE}")
     print(f"🐍 Python: {sys.version.split()[0]}")
     print("=" * 60)
+
+
+def load_config():
+    """Загружает конфигурацию из JSON файла"""
+    try:
+        if CONFIG_FILE.exists():
+            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                # Проверяем структуру и добавляем недостающие поля
+                if 'maintenance_history' not in config:
+                    config['maintenance_history'] = []
+                if 'last_update' not in config:
+                    config['last_update'] = None
+                if 'version' not in config:
+                    config['version'] = VERSION
+                return config
+        else:
+            # Создаем новый файл конфигурации
+            config = {
+                "maintenance_history": [],
+                "last_update": None,
+                "version": VERSION
+            }
+            save_config(config)
+            return config
+    except Exception as e:
+        print(f"Ошибка при загрузке конфигурации: {e}")
+        # Возвращаем конфигурацию по умолчанию
+        return {
+            "maintenance_history": [],
+            "last_update": None,
+            "version": VERSION
+        }
+
+
+def save_config(config):
+    """Сохраняет конфигурацию в JSON файл"""
+    try:
+        config['last_update'] = datetime.now().isoformat()
+        config['version'] = VERSION
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+        print(f"✅ Конфигурация сохранена в {CONFIG_FILE}")
+    except Exception as e:
+        print(f"❌ Ошибка при сохранении конфигурации: {e}")
+
+
+def update_maintenance_statistics():
+    """Обновляет статистику обслуживания на основе текущих данных"""
+    config = load_config()
+    
+    # Получаем текущую дату
+    now = datetime.now()
+    today = now.date()
+    
+    # Читаем данные из Excel для определения обслуженного оборудования
+    try:
+        alarm_items, warning_items, total_records, status_counts = read_excel_data()
+        
+        # Подсчитываем обслуженное оборудование (статус "В норме")
+        serviced_count = status_counts.get('В норме', 0)
+        
+        # Создаем запись о текущем состоянии
+        maintenance_record = {
+            "date": today.isoformat(),
+            "total_equipment": total_records,
+            "serviced": serviced_count,
+            "urgent": status_counts.get('СРОЧНО', 0),
+            "warning": status_counts.get('Внимание', 0),
+            "timestamp": now.isoformat()
+        }
+        
+        # Добавляем запись в историю
+        config['maintenance_history'].append(maintenance_record)
+        
+        # Ограничиваем историю последними 100 записями
+        if len(config['maintenance_history']) > 100:
+            config['maintenance_history'] = config['maintenance_history'][-100:]
+        
+        # Сохраняем обновленную конфигурацию
+        save_config(config)
+        
+        return config
+        
+    except Exception as e:
+        print(f"Ошибка при обновлении статистики: {e}")
+        return config
+
+
+def get_maintenance_statistics():
+    """Получает статистику обслуживания за различные периоды"""
+    config = load_config()
+    
+    if not config['maintenance_history']:
+        return {
+            "today": 0,
+            "yesterday": 0,
+            "this_week": 0,
+            "last_week": 0,
+            "this_month": 0,
+            "last_month": 0
+        }
+    
+    now = datetime.now()
+    today = now.date()
+    
+    # Вычисляем границы периодов
+    yesterday = today - timedelta(days=1)
+    week_start = today - timedelta(days=today.weekday())
+    last_week_start = week_start - timedelta(days=7)
+    last_week_end = week_start - timedelta(days=1)
+    month_start = today.replace(day=1)
+    last_month_end = month_start - timedelta(days=1)
+    last_month_start = last_month_end.replace(day=1)
+    
+    stats = {
+        "today": 0,
+        "yesterday": 0,
+        "this_week": 0,
+        "last_week": 0,
+        "this_month": 0,
+        "last_month": 0
+    }
+    
+    for record in config['maintenance_history']:
+        record_date = datetime.fromisoformat(record['date']).date()
+        
+        if record_date == today:
+            stats["today"] = record['serviced']
+        elif record_date == yesterday:
+            stats["yesterday"] = record['serviced']
+        elif week_start <= record_date <= today:
+            stats["this_week"] = max(stats["this_week"], record['serviced'])
+        elif last_week_start <= record_date <= last_week_end:
+            stats["last_week"] = max(stats["last_week"], record['serviced'])
+        elif month_start <= record_date <= today:
+            stats["this_month"] = max(stats["this_month"], record['serviced'])
+        elif last_month_start <= record_date <= last_month_end:
+            stats["last_month"] = max(stats["last_month"], record['serviced'])
+    
+    return stats
 
 
 def read_excel_data():
@@ -132,15 +275,28 @@ def format_item_info(item, item_type):
 
 def create_email_body(urgent_items, warning_items, total_records, status_counts):
     """Создает тело письма"""
+    # Получаем статистику обслуживания
+    maintenance_stats = get_maintenance_statistics()
+    
     # Вычисляем процент необслуженного оборудования
     unserviced_count = status_counts['СРОЧНО'] + status_counts['Внимание']
     unserviced_percentage = (unserviced_count / total_records * 100) if total_records > 0 else 0
+    
     body = f"📊 СТАТИСТИКА:\n\n"
     body += f"  СРОЧНО: {status_counts['СРОЧНО']}\n"
     body += f"  Внимание: {status_counts['Внимание']}\n"
     body += f"  Не требуется: {status_counts['В норме']}\n"
     body += f"  Всего: {total_records}\n"
     body += f"  Необслужено: {unserviced_count} ({unserviced_percentage:.1f}%)\n\n"
+    
+    # Добавляем статистику обслуживания
+    body += f"🔧 СТАТИСТИКА ОБСЛУЖИВАНИЯ:\n\n"
+    body += f"  За сутки: {maintenance_stats['today']}\n"
+    body += f"  За пред. сутки: {maintenance_stats['yesterday']}\n"
+    body += f"  За неделю: {maintenance_stats['this_week']}\n"
+    body += f"  За предыдущую неделю: {maintenance_stats['last_week']}\n"
+    body += f"  За текущий месяц: {maintenance_stats['this_month']}\n"
+    body += f"  За предыдущий месяц: {maintenance_stats['last_month']}\n\n"
     
     if urgent_items:
         total_urgent = sum(len(df) for df in urgent_items)
@@ -203,6 +359,10 @@ def main():
     
     # Читаем данные из Excel
     alarm_items, warning_items, total_records, status_counts = read_excel_data()
+    
+    # Обновляем статистику обслуживания
+    print("Обновляем статистику обслуживания...")
+    update_maintenance_statistics()
     
     # Проверяем, есть ли элементы, требующие внимания
     total_alarm = sum(len(df) for df in alarm_items) if alarm_items else 0
