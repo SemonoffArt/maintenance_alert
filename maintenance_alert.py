@@ -14,7 +14,7 @@ PROGRAM_DIR = Path(__file__).parent.absolute()
 
 # Настройки
 EXCEL_FILE = PROGRAM_DIR / "Обслуживание ПК и шкафов АСУТП.xlsx"
-CONFIG_FILE = PROGRAM_DIR / "maintenance_alert_conf.json"
+CONFIG_FILE = PROGRAM_DIR / "maintenance_alert_history.json"
 SHEETS_CONFIG = {
     "ПК АСУ ТП": {"range": "A4:J300"},
     "Шкафы АСУ ТП": {"range": "A4:J300"}
@@ -85,26 +85,41 @@ def save_config(config):
         print(f"❌ Ошибка при сохранении конфигурации: {e}")
 
 
-def update_maintenance_statistics():
+def update_maintenance_statistics(alarm_items, warning_items, total_records, status_counts):
     """Обновляет статистику обслуживания на основе текущих данных"""
     config = load_config()
     
     # Получаем текущую дату
     now = datetime.now()
     today = now.date()
+    today_str = today.isoformat()
     
-    # Читаем данные из Excel для определения обслуженного оборудования
+    print(f"🔍 Проверяем существование записи за {today.strftime('%d.%m.%Y')}...")
+    
+    # Проверяем, есть ли уже запись за сегодня
+    today_record_exists = False
+    for record in config['maintenance_history']:
+        if record['date'] == today_str:
+            today_record_exists = True
+            print(f"✅ Найдена существующая запись за {today.strftime('%d.%m.%Y')}: {record.get('ok', record.get('serviced', 0))} обслужено")
+            break
+    
+    # Если запись за сегодня уже существует, не добавляем новую
+    if today_record_exists:
+        print(f"✅ Запись за {today.strftime('%d.%m.%Y')} уже существует в истории, пропускаем добавление")
+        return config
+    
+    print(f"📝 Создаем новую запись за {today.strftime('%d.%m.%Y')}...")
+    
     try:
-        alarm_items, warning_items, total_records, status_counts = read_excel_data()
-        
         # Подсчитываем обслуженное оборудование (статус "В норме")
-        serviced_count = status_counts.get('В норме', 0)
+        ok_count = status_counts.get('В норме', 0)
         
         # Создаем запись о текущем состоянии
         maintenance_record = {
-            "date": today.isoformat(),
+            "date": today_str,
             "total_equipment": total_records,
-            "serviced": serviced_count,
+            "ok": ok_count,
             "urgent": status_counts.get('СРОЧНО', 0),
             "warning": status_counts.get('Внимание', 0),
             "timestamp": now.isoformat()
@@ -120,10 +135,11 @@ def update_maintenance_statistics():
         # Сохраняем обновленную конфигурацию
         save_config(config)
         
+        print(f"✅ Добавлена новая запись за {today.strftime('%d.%m.%Y')}: {ok_count} обслужено")
         return config
         
     except Exception as e:
-        print(f"Ошибка при обновлении статистики: {e}")
+        print(f"❌ Ошибка при обновлении статистики: {e}")
         return config
 
 
@@ -141,44 +157,65 @@ def get_maintenance_statistics():
             "last_month": 0
         }
     
-    now = datetime.now()
-    today = now.date()
-    
-    # Вычисляем границы периодов
-    yesterday = today - timedelta(days=1)
-    week_start = today - timedelta(days=today.weekday())
-    last_week_start = week_start - timedelta(days=7)
-    last_week_end = week_start - timedelta(days=1)
-    month_start = today.replace(day=1)
-    last_month_end = month_start - timedelta(days=1)
-    last_month_start = last_month_end.replace(day=1)
-    
-    stats = {
-        "today": 0,
-        "yesterday": 0,
-        "this_week": 0,
-        "last_week": 0,
-        "this_month": 0,
-        "last_month": 0
-    }
-    
-    for record in config['maintenance_history']:
-        record_date = datetime.fromisoformat(record['date']).date()
-        
-        if record_date == today:
-            stats["today"] = record['serviced']
-        elif record_date == yesterday:
-            stats["yesterday"] = record['serviced']
-        elif week_start <= record_date <= today:
-            stats["this_week"] = max(stats["this_week"], record['serviced'])
-        elif last_week_start <= record_date <= last_week_end:
-            stats["last_week"] = max(stats["last_week"], record['serviced'])
-        elif month_start <= record_date <= today:
-            stats["this_month"] = max(stats["this_month"], record['serviced'])
-        elif last_month_start <= record_date <= last_month_end:
-            stats["last_month"] = max(stats["last_month"], record['serviced'])
-    
-    return stats
+    def _compute_period_boundaries(base_date):
+        yesterday_local = base_date - timedelta(days=1)
+        week_start_local = base_date - timedelta(days=base_date.weekday())
+        last_week_start_local = week_start_local - timedelta(days=7)
+        last_week_end_local = week_start_local - timedelta(days=1)
+        month_start_local = base_date.replace(day=1)
+        last_month_end_local = month_start_local - timedelta(days=1)
+        last_month_start_local = last_month_end_local.replace(day=1)
+        return {
+            "yesterday": yesterday_local,
+            "week_start": week_start_local,
+            "last_week_start": last_week_start_local,
+            "last_week_end": last_week_end_local,
+            "month_start": month_start_local,
+            "last_month_start": last_month_start_local,
+            "last_month_end": last_month_end_local,
+        }
+
+    def _aggregate_raw_ok_stats(history_records, today_local, bounds):
+        raw = {
+            "today": 0,
+            "yesterday": 0,
+            "this_week": 0,
+            "last_week": 0,
+            "this_month": 0,
+            "last_month": 0,
+        }
+        for record in history_records:
+            record_date = datetime.fromisoformat(record['date']).date()
+            ok_value = record.get('ok', record.get('serviced', 0))
+            if record_date == today_local:
+                raw["today"] = ok_value
+            elif record_date == bounds["yesterday"]:
+                raw["yesterday"] = ok_value
+            elif bounds["week_start"] <= record_date <= today_local:
+                raw["this_week"] = max(raw["this_week"], ok_value)
+            elif bounds["last_week_start"] <= record_date <= bounds["last_week_end"]:
+                raw["last_week"] = max(raw["last_week"], ok_value)
+            elif bounds["month_start"] <= record_date <= today_local:
+                raw["this_month"] = max(raw["this_month"], ok_value)
+            elif bounds["last_month_start"] <= record_date <= bounds["last_month_end"]:
+                raw["last_month"] = max(raw["last_month"], ok_value)
+        return raw
+
+    def _compute_ok_deltas(raw_stats):
+        return {
+            "delta_ok_day": raw_stats["today"] - raw_stats["yesterday"],
+            "delta_ok_week": raw_stats["this_week"] - raw_stats["last_week"],
+            "delta_ok_month": raw_stats["this_month"] - raw_stats["last_month"],
+        }
+
+    today = datetime.now().date()
+    bounds = _compute_period_boundaries(today)
+    raw_stats = _aggregate_raw_ok_stats(config['maintenance_history'], today, bounds)
+    delta_stats = _compute_ok_deltas(raw_stats)
+
+    merged = {**raw_stats, **delta_stats}
+    merged["today"] = merged["delta_ok_day"]
+    return merged
 
 
 def read_excel_data():
@@ -277,27 +314,38 @@ def create_email_body(urgent_items, warning_items, total_records, status_counts)
     """Создает тело письма"""
     # Получаем статистику обслуживания
     maintenance_stats = get_maintenance_statistics()
+
+    def _format_signed(number):
+        return f"+{number}" if number > 0 else str(number)
+
+    def _build_serviced_block(stats):
+        delta_day = stats.get('delta_ok_day', 0)
+        delta_week = stats.get('delta_ok_week', 0)
+        delta_month = stats.get('delta_ok_month', 0)
+        lines = [
+            "🔧 ОБСЛУЖЕНО:",
+            f"  за сутки: {_format_signed(delta_day)}",
+            f"  за неделю: {_format_signed(delta_week)}",
+            f"  за месяц: {_format_signed(delta_month)}",
+            "",
+        ]
+        return "\n".join(lines) + "\n"
     
     # Вычисляем процент необслуженного оборудования
     unserviced_count = status_counts['СРОЧНО'] + status_counts['Внимание']
     unserviced_percentage = (unserviced_count / total_records * 100) if total_records > 0 else 0
     
-    body = f"📊 СТАТИСТИКА:\n\n"
-    body += f"  СРОЧНО: {status_counts['СРОЧНО']}\n"
+    body = f"  СРОЧНО: {status_counts['СРОЧНО']}\n"
     body += f"  Внимание: {status_counts['Внимание']}\n"
     body += f"  Не требуется: {status_counts['В норме']}\n"
     body += f"  Всего: {total_records}\n"
     body += f"  Необслужено: {unserviced_count} ({unserviced_percentage:.1f}%)\n\n"
     
     # Добавляем статистику обслуживания
-    body += f"🔧 СТАТИСТИКА ОБСЛУЖИВАНИЯ:\n\n"
-    body += f"  За сутки: {maintenance_stats['today']}\n"
-    body += f"  За пред. сутки: {maintenance_stats['yesterday']}\n"
-    body += f"  За неделю: {maintenance_stats['this_week']}\n"
-    body += f"  За предыдущую неделю: {maintenance_stats['last_week']}\n"
-    body += f"  За текущий месяц: {maintenance_stats['this_month']}\n"
-    body += f"  За предыдущий месяц: {maintenance_stats['last_month']}\n\n"
-    
+    body += _build_serviced_block(maintenance_stats)
+    body += "\n"
+
+
     if urgent_items:
         total_urgent = sum(len(df) for df in urgent_items)
         body += f"🚨 СРОЧНОЕ ОБСЛУЖИВАНИЕ (записей: {total_urgent}):\n"
@@ -354,6 +402,7 @@ def send_email(body, recipients):
 
 def main():
     """Эта функция выполняется первой в программе"""
+    print("🚀 ПРОГРАММА ЗАПУЩЕНА")
     print("Начинаем проверку графика технического обслуживания...")
     print(f"Получатели: {', '.join(RECIPIENTS)}")
     
@@ -361,8 +410,11 @@ def main():
     alarm_items, warning_items, total_records, status_counts = read_excel_data()
     
     # Обновляем статистику обслуживания
-    print("Обновляем статистику обслуживания...")
-    update_maintenance_statistics()
+    print("\n" + "="*60)
+    print("📊 ОБНОВЛЕНИЕ СТАТИСТИКИ ОБСЛУЖИВАНИЯ")
+    print("="*60)
+    update_maintenance_statistics(alarm_items, warning_items, total_records, status_counts)
+    print("="*60 + "\n")
     
     # Проверяем, есть ли элементы, требующие внимания
     total_alarm = sum(len(df) for df in alarm_items) if alarm_items else 0

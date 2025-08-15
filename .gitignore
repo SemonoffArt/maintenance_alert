@@ -5,7 +5,7 @@ __pycache__/
 
 ~$*.xlsx
 .~lock*
-maintenance_alert_conf.json
+maintenance_alert_history.json
 
 # C extensions
 *.so
