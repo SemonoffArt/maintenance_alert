@@ -144,8 +144,8 @@ def update_maintenance_statistics(alarm_items, warning_items, total_records, sta
         # Добавляем запись в историю
         config['maintenance_history'].append(maintenance_record)
         
-        # Ограничиваем историю последними 100 записями
-        if len(config['maintenance_history']) > 100:
+        # Ограничиваем историю последними 120 записями
+        if len(config['maintenance_history']) > 120:
             config['maintenance_history'] = config['maintenance_history'][-100:]
         
         # Сохраняем обновленную конфигурацию
@@ -203,13 +203,13 @@ def get_maintenance_statistics():
 
     def _aggregate_raw_field(history_records, today_local, bounds, extract_value):
         raw = {
-            "today": 0,
-            "yesterday": 0,
+        "today": 0,
+        "yesterday": 0,
             "day_before_yesterday": 0,
-            "this_week": 0,
-            "last_week": 0,
+        "this_week": 0,
+        "last_week": 0,
             "week_before_last": 0,
-            "this_month": 0,
+        "this_month": 0,
             "last_month": 0,
             "month_before_last": 0,
         }
@@ -368,56 +368,26 @@ def format_item_info(item, item_type):
 
 
 def create_email_body(urgent_items, warning_items, total_records, status_counts):
-    """Создает тело письма и путь к встроенному изображению диаграммы (если построена)."""
-    # Получаем статистику обслуживания
-    maintenance_stats = get_maintenance_statistics()
-
-    def _format_signed(number):
-        return f"+{number}" if number > 0 else str(number)
-
-    def _build_delta_block(title, day, prev_day, week, prev_week, month, prev_month):
-        lines = [
-            title,
-            f"  за сутки: {_format_signed(day)}",
-            f"  за предыдущие сутки: {_format_signed(prev_day)}",
-            f"  за неделю: {_format_signed(week)}",
-            f"  за предыдущую неделю: {_format_signed(prev_week)}",
-            f"  за месяц: {_format_signed(month)}",
-            f"  за предыдущий месяц: {_format_signed(prev_month)}",
-            "",
-        ]
-        return "\n".join(lines) + "\n"
+    """Создает HTML-тело письма и путь к встроенному изображению диаграммы (если построена)."""
     
     # Вычисляем процент необслуженного оборудования
     unserviced_count = status_counts['СРОЧНО'] + status_counts['Внимание']
     unserviced_percentage = (unserviced_count / total_records * 100) if total_records > 0 else 0
     
-    body = f"  СРОЧНО: {status_counts['СРОЧНО']}\n"
-    body += f"  Внимание: {status_counts['Внимание']}\n"
-    body += f"  Не требуется: {status_counts['В норме']}\n"
-    body += f"  Всего: {total_records}\n"
-    body += f"  Необслужено: {unserviced_count} ({unserviced_percentage:.1f}%)\n\n"
-    
-    # Добавляем статистику обслуживания: изменения 'ok' и 'urgent'
-    body += _build_delta_block(
-        "🔧 ОБСЛУЖЕНО (изменение 'ok'):",
-        maintenance_stats.get('delta_ok_day', 0),
-        maintenance_stats.get('delta_ok_prev_day', 0),
-        maintenance_stats.get('delta_ok_week', 0),
-        maintenance_stats.get('delta_ok_prev_week', 0),
-        maintenance_stats.get('delta_ok_month', 0),
-        maintenance_stats.get('delta_ok_prev_month', 0),
+    html_parts: list[str] = []
+    # Верхняя сводка
+    html_parts.append(
+        (
+            "<div>"
+            "<b>ТЕКУЩЕЕ СОСТОЯНИЕ:</b><br/>"
+            f"СРОЧНО: {status_counts['СРОЧНО']}<br/>"
+            f"Внимание: {status_counts['Внимание']}<br/>"
+            f"Не требуется: {status_counts['В норме']}<br/>"
+            f"Всего: {total_records}<br/>"
+            f"Необслужено: {unserviced_count} ({unserviced_percentage:.1f}%)"
+            "</div><br/>"
+        )
     )
-    body += _build_delta_block(
-        "🚨 СРОЧНО (изменение 'urgent'):",
-        maintenance_stats.get('delta_urgent_day', 0),
-        maintenance_stats.get('delta_urgent_prev_day', 0),
-        maintenance_stats.get('delta_urgent_week', 0),
-        maintenance_stats.get('delta_urgent_prev_week', 0),
-        maintenance_stats.get('delta_urgent_month', 0),
-        maintenance_stats.get('delta_urgent_prev_month', 0),
-    )
-    body += "\n"
 
     # Построение диаграммы за последние 62 дня по данным истории
     chart_path = None
@@ -442,7 +412,7 @@ def create_email_body(urgent_items, warning_items, total_records, status_counts)
             warning_vals = [date_to_vals.get(d, (0, 0, 0))[2] for d in days_sorted]
 
             x = list(range(len(days_sorted)))
-            plt.figure(figsize=(10, 3))
+            plt.figure(figsize=(9, 3))
             ok_bars = plt.bar(x, ok_vals, width=0.9, color='#2E7D32', label='В норме')
             urgent_bars = plt.bar(x, urgent_vals, bottom=ok_vals, width=0.9, color='#C62828', label='СРОЧНО')
             bottom_stack = [ok_vals[i] + urgent_vals[i] for i in range(len(x))]
@@ -501,52 +471,65 @@ def create_email_body(urgent_items, warning_items, total_records, status_counts)
         print(f"❌ Не удалось построить диаграмму: {e}")
 
 
+    # Вставляем диаграмму ПЕРЕД секцией срочных работ
+    if chart_path and Path(chart_path).exists():
+        html_parts.append(
+            (
+                "<div>"
+                "<b>Диаграмма за 62 дня:</b><br/>"
+                "<img src=\"cid:status_chart\" alt=\"Диаграмма\"/>"
+                "</div><br/>"
+            )
+        )
+
     if urgent_items:
         total_urgent = sum(len(df) for df in urgent_items)
-        body += f"🚨 СРОЧНОЕ ОБСЛУЖИВАНИЕ (записей: {total_urgent}):\n"
-        body += "=" * 50 + "\n"
+        html_parts.append(f"<div><b>🚨 СРОЧНОЕ ОБСЛУЖИВАНИЕ (записей: {total_urgent}):</b></div>")
+        html_parts.append("<hr/>")
         for urgent_df in urgent_items:
             for _, item in urgent_df.iterrows():
-                body += format_item_info(item, item['Тип'])
-                body += "-" * 30 + "\n"
+                html_parts.append("<div>" + format_item_info(item, item['Тип']).replace('\n', '<br/>') + "</div>")
+                html_parts.append("<hr/>")
     
     if warning_items:
         total_warning = sum(len(df) for df in warning_items)
-        body += f"\n⚠️ ВНИМАНИЕ! Приближается срок обслуживания. (записей: {total_warning}):\n"
-        body += "=" * 50 + "\n"
+        html_parts.append(f"<div><b>⚠️ ВНИМАНИЕ! Приближается срок обслуживания. (записей: {total_warning}):</b></div>")
+        html_parts.append("<hr/>")
         for warning_df in warning_items:
             for _, item in warning_df.iterrows():
-                body += format_item_info(item, item['Тип'])
-                body += "-" * 30 + "\n"
+                html_parts.append("<div>" + format_item_info(item, item['Тип']).replace('\n', '<br/>') + "</div>")
+                html_parts.append("<hr/>")
 
-    body += f"\n\nСообщение сформировано: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}."
-    body += f"\n\nТаблица обслуживания и скрипт рассылки расположены на файловом сервере в: '{PROGRAM_DIR}'."
-    body += f"\nСкрипт вызывается по расписанию, на файловом сервере, в Windows Task Scheduler (правило 'maintenance_alert.py')"
-    body += f"\n\nСписок получателей: {', '.join(RECIPIENTS)}"
-    body += f"\n\n🔧 v{VERSION} от {RELEASE_DATE}"
-    
-    return body, chart_path
+    html_parts.append(
+        (
+            "<br/><div>"
+            f"Сообщение сформировано: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}<br/>"
+            f"Таблица обслуживания и скрипт: '{PROGRAM_DIR}'<br/>"
+            "Скрипт вызывается по расписанию в Windows Task Scheduler (правило 'maintenance_alert.py')<br/>"
+            f"Список получателей: {', '.join(RECIPIENTS)}<br/>"
+            f"🔧 v{VERSION} от {RELEASE_DATE}"
+            "</div>"
+        )
+    )
+
+    html_body = "".join(html_parts)
+    return html_body, chart_path
 
 
-def send_email(body, recipients, chart_path=None):
-    """Отправляет email через SMTP нескольким получателям. Если chart_path задан, встраивает изображение диаграммы в письмо."""
+def send_email(html_body, recipients, chart_path=None):
+    """Отправляет email через SMTP нескольким получателям. Вставляет HTML и inline-диаграмму при наличии."""
     try:
         # Создаем сообщение
         msg = MIMEMultipart('related')
         msg['From'] = SENDER_EMAIL
         msg['To'] = ", ".join(recipients)  # Все получатели в одной строке
         msg['Subject'] = "🔔 Напоминание о техническом обслуживании оборудования"
-
+        
         alternative = MIMEMultipart('alternative')
         msg.attach(alternative)
 
-        # Текстовая версия
-        alternative.attach(MIMEText(body, 'plain', 'utf-8'))
-
-        # HTML версия с изображением при наличии
+        # Прямая HTML-версия с изображением при наличии
         if chart_path and Path(chart_path).exists():
-            html_body = body.replace('\n', '<br/>')
-            html_body += f"<br/><br/><b>Диаграмма за 62 дня:</b><br/><img src=\"cid:status_chart\" alt=\"Диаграмма\"/>"
             alternative.attach(MIMEText(html_body, 'html', 'utf-8'))
 
             with open(chart_path, 'rb') as img_file:
@@ -554,6 +537,8 @@ def send_email(body, recipients, chart_path=None):
                 img.add_header('Content-ID', '<status_chart>')
                 img.add_header('Content-Disposition', 'inline', filename=Path(chart_path).name)
                 msg.attach(img)
+        else:
+            alternative.attach(MIMEText(html_body, 'html', 'utf-8'))
         
         # Подключаемся к SMTP серверу
         server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
@@ -602,9 +587,9 @@ def main():
     # Формируем тело письма и строим диаграмму
     email_body, chart_path = create_email_body(alarm_items, warning_items, total_records, status_counts)
     print("\nСформировано письмо:")
-    print("-" * 50)
-    print(email_body)
-    print("-" * 50)
+    # print("-" * 50)
+    # print(email_body)
+    # print("-" * 50)
     
     # Отправляем письмо всем получателям
     print(f"\nОтправляем письмо {len(RECIPIENTS)} получателям...")
