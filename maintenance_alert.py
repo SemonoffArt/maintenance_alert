@@ -13,10 +13,24 @@ import matplotlib.pyplot as plt
 VERSION = "0.9.10"
 RELEASE_DATE = "14.08.2025"
 PROGRAM_DIR = Path(__file__).parent.absolute()
+RESOURCES_DIR = PROGRAM_DIR / "resources"
 
 # Настройки
-EXCEL_FILE = PROGRAM_DIR / "Обслуживание ПК и шкафов АСУТП.xlsx"
-CONFIG_FILE = PROGRAM_DIR / "maintenance_alert_history.json"
+EXCEL_FILENAME = "Обслуживание ПК и шкафов АСУТП.xlsx"
+CONFIG_FILE = RESOURCES_DIR / "maintenance_alert_history.json"
+
+def get_excel_file_path() -> Path:
+    """Ищет Excel-файл сначала в папке скрипта, затем уровнем выше. Возвращает путь (даже если файл не найден)."""
+    primary = PROGRAM_DIR / EXCEL_FILENAME
+    if primary.exists():
+        return primary
+    fallback = PROGRAM_DIR.parent / EXCEL_FILENAME
+    if fallback.exists():
+        return fallback
+    # Если нигде не найден, возвращаем путь в папке скрипта (для понятного сообщения об ошибке при чтении)
+    return primary
+
+EXCEL_FILE = get_excel_file_path()
 SHEETS_CONFIG = {
     "ПК АСУ ТП": {"range": "A4:J300"},
     "Шкафы АСУ ТП": {"range": "A4:J300"}
@@ -478,7 +492,9 @@ def create_email_body(urgent_items, warning_items, total_records, status_counts)
             plt.title('Статусы по дням (последние 62 дня)')
             plt.legend(loc='upper left')
             plt.tight_layout()
-            chart_path = PROGRAM_DIR / 'maintenance_status_62days.png'
+            # Сохраняем диаграмму в папку ресурсов
+            RESOURCES_DIR.mkdir(parents=True, exist_ok=True)
+            chart_path = RESOURCES_DIR / 'maintenance_status_62days.png'
             plt.savefig(chart_path, dpi=150)
             plt.close()
     except Exception as e:
