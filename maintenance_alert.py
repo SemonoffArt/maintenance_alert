@@ -159,30 +159,43 @@ def get_maintenance_statistics():
     
     def _compute_period_boundaries(base_date):
         yesterday_local = base_date - timedelta(days=1)
+        day_before_yesterday_local = yesterday_local - timedelta(days=1)
         week_start_local = base_date - timedelta(days=base_date.weekday())
         last_week_start_local = week_start_local - timedelta(days=7)
         last_week_end_local = week_start_local - timedelta(days=1)
+        prev_prev_week_start_local = last_week_start_local - timedelta(days=7)
+        prev_prev_week_end_local = last_week_start_local - timedelta(days=1)
         month_start_local = base_date.replace(day=1)
         last_month_end_local = month_start_local - timedelta(days=1)
         last_month_start_local = last_month_end_local.replace(day=1)
+        prev_prev_month_end_local = last_month_start_local - timedelta(days=1)
+        prev_prev_month_start_local = prev_prev_month_end_local.replace(day=1)
         return {
             "yesterday": yesterday_local,
+            "day_before_yesterday": day_before_yesterday_local,
             "week_start": week_start_local,
             "last_week_start": last_week_start_local,
             "last_week_end": last_week_end_local,
+            "prev_prev_week_start": prev_prev_week_start_local,
+            "prev_prev_week_end": prev_prev_week_end_local,
             "month_start": month_start_local,
             "last_month_start": last_month_start_local,
             "last_month_end": last_month_end_local,
+            "prev_prev_month_start": prev_prev_month_start_local,
+            "prev_prev_month_end": prev_prev_month_end_local,
         }
 
     def _aggregate_raw_field(history_records, today_local, bounds, extract_value):
         raw = {
             "today": 0,
             "yesterday": 0,
+            "day_before_yesterday": 0,
             "this_week": 0,
             "last_week": 0,
+            "week_before_last": 0,
             "this_month": 0,
             "last_month": 0,
+            "month_before_last": 0,
         }
         for record in history_records:
             record_date = datetime.fromisoformat(record['date']).date()
@@ -191,14 +204,20 @@ def get_maintenance_statistics():
                 raw["today"] = value
             elif record_date == bounds["yesterday"]:
                 raw["yesterday"] = value
+            elif record_date == bounds["day_before_yesterday"]:
+                raw["day_before_yesterday"] = value
             elif bounds["week_start"] <= record_date <= today_local:
                 raw["this_week"] = max(raw["this_week"], value)
             elif bounds["last_week_start"] <= record_date <= bounds["last_week_end"]:
                 raw["last_week"] = max(raw["last_week"], value)
+            elif bounds["prev_prev_week_start"] <= record_date <= bounds["prev_prev_week_end"]:
+                raw["week_before_last"] = max(raw["week_before_last"], value)
             elif bounds["month_start"] <= record_date <= today_local:
                 raw["this_month"] = max(raw["this_month"], value)
             elif bounds["last_month_start"] <= record_date <= bounds["last_month_end"]:
                 raw["last_month"] = max(raw["last_month"], value)
+            elif bounds["prev_prev_month_start"] <= record_date <= bounds["prev_prev_month_end"]:
+                raw["month_before_last"] = max(raw["month_before_last"], value)
         return raw
 
     def _compute_ok_deltas(raw_stats):
@@ -220,13 +239,19 @@ def get_maintenance_statistics():
     )
     ok_delta_stats = {
         "delta_ok_day": ok_raw_stats["today"] - ok_raw_stats["yesterday"],
+        "delta_ok_prev_day": ok_raw_stats["yesterday"] - ok_raw_stats["day_before_yesterday"],
         "delta_ok_week": ok_raw_stats["this_week"] - ok_raw_stats["last_week"],
+        "delta_ok_prev_week": ok_raw_stats["last_week"] - ok_raw_stats["week_before_last"],
         "delta_ok_month": ok_raw_stats["this_month"] - ok_raw_stats["last_month"],
+        "delta_ok_prev_month": ok_raw_stats["last_month"] - ok_raw_stats["month_before_last"],
     }
     urgent_delta_stats = {
         "delta_urgent_day": urgent_raw_stats["today"] - urgent_raw_stats["yesterday"],
+        "delta_urgent_prev_day": urgent_raw_stats["yesterday"] - urgent_raw_stats["day_before_yesterday"],
         "delta_urgent_week": urgent_raw_stats["this_week"] - urgent_raw_stats["last_week"],
+        "delta_urgent_prev_week": urgent_raw_stats["last_week"] - urgent_raw_stats["week_before_last"],
         "delta_urgent_month": urgent_raw_stats["this_month"] - urgent_raw_stats["last_month"],
+        "delta_urgent_prev_month": urgent_raw_stats["last_month"] - urgent_raw_stats["month_before_last"],
     }
 
     merged = {**ok_raw_stats, **ok_delta_stats, **{f"urgent_{k}": v for k, v in urgent_raw_stats.items()}, **urgent_delta_stats}
@@ -334,12 +359,15 @@ def create_email_body(urgent_items, warning_items, total_records, status_counts)
     def _format_signed(number):
         return f"+{number}" if number > 0 else str(number)
 
-    def _build_delta_block(title, day, week, month):
+    def _build_delta_block(title, day, prev_day, week, prev_week, month, prev_month):
         lines = [
             title,
             f"  за сутки: {_format_signed(day)}",
+            f"  за предыдущие сутки: {_format_signed(prev_day)}",
             f"  за неделю: {_format_signed(week)}",
+            f"  за предыдущую неделю: {_format_signed(prev_week)}",
             f"  за месяц: {_format_signed(month)}",
+            f"  за предыдущий месяц: {_format_signed(prev_month)}",
             "",
         ]
         return "\n".join(lines) + "\n"
@@ -358,14 +386,20 @@ def create_email_body(urgent_items, warning_items, total_records, status_counts)
     body += _build_delta_block(
         "🔧 ОБСЛУЖЕНО (изменение 'ok'):",
         maintenance_stats.get('delta_ok_day', 0),
+        maintenance_stats.get('delta_ok_prev_day', 0),
         maintenance_stats.get('delta_ok_week', 0),
+        maintenance_stats.get('delta_ok_prev_week', 0),
         maintenance_stats.get('delta_ok_month', 0),
+        maintenance_stats.get('delta_ok_prev_month', 0),
     )
     body += _build_delta_block(
         "🚨 СРОЧНО (изменение 'urgent'):",
         maintenance_stats.get('delta_urgent_day', 0),
+        maintenance_stats.get('delta_urgent_prev_day', 0),
         maintenance_stats.get('delta_urgent_week', 0),
+        maintenance_stats.get('delta_urgent_prev_week', 0),
         maintenance_stats.get('delta_urgent_month', 0),
+        maintenance_stats.get('delta_urgent_prev_month', 0),
     )
     body += "\n"
 
