@@ -442,11 +442,11 @@ def create_email_body(urgent_items, warning_items, total_records, status_counts)
             warning_vals = [date_to_vals.get(d, (0, 0, 0))[2] for d in days_sorted]
 
             x = list(range(len(days_sorted)))
-            plt.figure(figsize=(12, 4))
-            ok_bars = plt.bar(x, ok_vals, color='#2E7D32', label='В норме')
-            urgent_bars = plt.bar(x, urgent_vals, bottom=ok_vals, color='#C62828', label='СРОЧНО')
+            plt.figure(figsize=(10, 3))
+            ok_bars = plt.bar(x, ok_vals, width=0.9, color='#2E7D32', label='В норме')
+            urgent_bars = plt.bar(x, urgent_vals, bottom=ok_vals, width=0.9, color='#C62828', label='СРОЧНО')
             bottom_stack = [ok_vals[i] + urgent_vals[i] for i in range(len(x))]
-            warning_bars = plt.bar(x, warning_vals, bottom=bottom_stack, color='#F9A825', label='Внимание')
+            warning_bars = plt.bar(x, warning_vals, bottom=bottom_stack, width=0.9, color='#F9A825', label='Внимание')
 
             # Подписи процентов и значений по каждому сегменту столбца
             for i, xpos in enumerate(x):
@@ -460,7 +460,7 @@ def create_email_body(urgent_items, warning_items, total_records, status_counts)
                         y_pos = ok_vals[i] / 2
                         plt.text(
                             xpos, y_pos,
-                            f"{ok_vals[i]} ({pct:.0f}%)",
+                            f"{ok_vals[i]}", # ({pct:.0f}%)
                             ha='center', va='center', rotation=90, fontsize=6, color='white'
                         )
                 # urgent
@@ -470,7 +470,7 @@ def create_email_body(urgent_items, warning_items, total_records, status_counts)
                         y_pos = ok_vals[i] + urgent_vals[i] / 2
                         plt.text(
                             xpos, y_pos,
-                            f"{urgent_vals[i]} ({pct:.0f}%)",
+                            f"{urgent_vals[i]}", # ({pct:.0f}%)
                             ha='center', va='center', rotation=90, fontsize=6, color='white'
                         )
                 # warning
@@ -480,7 +480,7 @@ def create_email_body(urgent_items, warning_items, total_records, status_counts)
                         y_pos = ok_vals[i] + urgent_vals[i] + warning_vals[i] / 2
                         plt.text(
                             xpos, y_pos,
-                            f"{warning_vals[i]} ({pct:.0f}%)",
+                            f"{warning_vals[i]}", # ({pct:.0f}%)
                             ha='center', va='center', rotation=90, fontsize=6, color='black'
                         )
             labels = [d.strftime('%d.%m') for d in days_sorted]
