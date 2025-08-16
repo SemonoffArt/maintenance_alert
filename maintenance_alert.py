@@ -175,7 +175,7 @@ def get_maintenance_statistics():
             "last_month_end": last_month_end_local,
         }
 
-    def _aggregate_raw_ok_stats(history_records, today_local, bounds):
+    def _aggregate_raw_field(history_records, today_local, bounds, extract_value):
         raw = {
             "today": 0,
             "yesterday": 0,
@@ -186,19 +186,19 @@ def get_maintenance_statistics():
         }
         for record in history_records:
             record_date = datetime.fromisoformat(record['date']).date()
-            ok_value = record.get('ok', record.get('serviced', 0))
+            value = extract_value(record)
             if record_date == today_local:
-                raw["today"] = ok_value
+                raw["today"] = value
             elif record_date == bounds["yesterday"]:
-                raw["yesterday"] = ok_value
+                raw["yesterday"] = value
             elif bounds["week_start"] <= record_date <= today_local:
-                raw["this_week"] = max(raw["this_week"], ok_value)
+                raw["this_week"] = max(raw["this_week"], value)
             elif bounds["last_week_start"] <= record_date <= bounds["last_week_end"]:
-                raw["last_week"] = max(raw["last_week"], ok_value)
+                raw["last_week"] = max(raw["last_week"], value)
             elif bounds["month_start"] <= record_date <= today_local:
-                raw["this_month"] = max(raw["this_month"], ok_value)
+                raw["this_month"] = max(raw["this_month"], value)
             elif bounds["last_month_start"] <= record_date <= bounds["last_month_end"]:
-                raw["last_month"] = max(raw["last_month"], ok_value)
+                raw["last_month"] = max(raw["last_month"], value)
         return raw
 
     def _compute_ok_deltas(raw_stats):
@@ -210,10 +210,26 @@ def get_maintenance_statistics():
 
     today = datetime.now().date()
     bounds = _compute_period_boundaries(today)
-    raw_stats = _aggregate_raw_ok_stats(config['maintenance_history'], today, bounds)
-    delta_stats = _compute_ok_deltas(raw_stats)
+    ok_raw_stats = _aggregate_raw_field(
+        config['maintenance_history'], today, bounds,
+        lambda rec: rec.get('ok', rec.get('serviced', 0))
+    )
+    urgent_raw_stats = _aggregate_raw_field(
+        config['maintenance_history'], today, bounds,
+        lambda rec: rec.get('urgent', 0)
+    )
+    ok_delta_stats = {
+        "delta_ok_day": ok_raw_stats["today"] - ok_raw_stats["yesterday"],
+        "delta_ok_week": ok_raw_stats["this_week"] - ok_raw_stats["last_week"],
+        "delta_ok_month": ok_raw_stats["this_month"] - ok_raw_stats["last_month"],
+    }
+    urgent_delta_stats = {
+        "delta_urgent_day": urgent_raw_stats["today"] - urgent_raw_stats["yesterday"],
+        "delta_urgent_week": urgent_raw_stats["this_week"] - urgent_raw_stats["last_week"],
+        "delta_urgent_month": urgent_raw_stats["this_month"] - urgent_raw_stats["last_month"],
+    }
 
-    merged = {**raw_stats, **delta_stats}
+    merged = {**ok_raw_stats, **ok_delta_stats, **{f"urgent_{k}": v for k, v in urgent_raw_stats.items()}, **urgent_delta_stats}
     merged["today"] = merged["delta_ok_day"]
     return merged
 
@@ -318,15 +334,12 @@ def create_email_body(urgent_items, warning_items, total_records, status_counts)
     def _format_signed(number):
         return f"+{number}" if number > 0 else str(number)
 
-    def _build_serviced_block(stats):
-        delta_day = stats.get('delta_ok_day', 0)
-        delta_week = stats.get('delta_ok_week', 0)
-        delta_month = stats.get('delta_ok_month', 0)
+    def _build_delta_block(title, day, week, month):
         lines = [
-            "🔧 ОБСЛУЖЕНО:",
-            f"  за сутки: {_format_signed(delta_day)}",
-            f"  за неделю: {_format_signed(delta_week)}",
-            f"  за месяц: {_format_signed(delta_month)}",
+            title,
+            f"  за сутки: {_format_signed(day)}",
+            f"  за неделю: {_format_signed(week)}",
+            f"  за месяц: {_format_signed(month)}",
             "",
         ]
         return "\n".join(lines) + "\n"
@@ -341,8 +354,19 @@ def create_email_body(urgent_items, warning_items, total_records, status_counts)
     body += f"  Всего: {total_records}\n"
     body += f"  Необслужено: {unserviced_count} ({unserviced_percentage:.1f}%)\n\n"
     
-    # Добавляем статистику обслуживания
-    body += _build_serviced_block(maintenance_stats)
+    # Добавляем статистику обслуживания: изменения 'ok' и 'urgent'
+    body += _build_delta_block(
+        "🔧 ОБСЛУЖЕНО (изменение 'ok'):",
+        maintenance_stats.get('delta_ok_day', 0),
+        maintenance_stats.get('delta_ok_week', 0),
+        maintenance_stats.get('delta_ok_month', 0),
+    )
+    body += _build_delta_block(
+        "🚨 СРОЧНО (изменение 'urgent'):",
+        maintenance_stats.get('delta_urgent_day', 0),
+        maintenance_stats.get('delta_urgent_week', 0),
+        maintenance_stats.get('delta_urgent_month', 0),
+    )
     body += "\n"
 
 
