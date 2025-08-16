@@ -3,9 +3,11 @@ from datetime import datetime, timedelta
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.image import MIMEImage
 from pathlib import Path
 import sys
 import json
+import matplotlib.pyplot as plt
 
 # Версия программы
 VERSION = "0.9.10"
@@ -352,7 +354,7 @@ def format_item_info(item, item_type):
 
 
 def create_email_body(urgent_items, warning_items, total_records, status_counts):
-    """Создает тело письма"""
+    """Создает тело письма и путь к встроенному изображению диаграммы (если построена)."""
     # Получаем статистику обслуживания
     maintenance_stats = get_maintenance_statistics()
 
@@ -403,6 +405,85 @@ def create_email_body(urgent_items, warning_items, total_records, status_counts)
     )
     body += "\n"
 
+    # Построение диаграммы за последние 62 дня по данным истории
+    chart_path = None
+    try:
+        config = load_config()
+        if config['maintenance_history']:
+            today = datetime.now().date()
+            start_date = today - timedelta(days=61)
+            # Собираем значения за каждый день диапазона (включая отсутствующие дни)
+            date_to_vals = {}
+            for rec in config['maintenance_history']:
+                rec_date = datetime.fromisoformat(rec['date']).date()
+                if start_date <= rec_date <= today:
+                    date_to_vals[rec_date] = (
+                        rec.get('ok', rec.get('serviced', 0)),
+                        rec.get('urgent', 0),
+                        rec.get('warning', 0),
+                    )
+            days_sorted = [start_date + timedelta(days=i) for i in range(62)]
+            ok_vals = [date_to_vals.get(d, (0, 0, 0))[0] for d in days_sorted]
+            urgent_vals = [date_to_vals.get(d, (0, 0, 0))[1] for d in days_sorted]
+            warning_vals = [date_to_vals.get(d, (0, 0, 0))[2] for d in days_sorted]
+
+            x = list(range(len(days_sorted)))
+            plt.figure(figsize=(12, 4))
+            ok_bars = plt.bar(x, ok_vals, color='#2E7D32', label='В норме')
+            urgent_bars = plt.bar(x, urgent_vals, bottom=ok_vals, color='#C62828', label='СРОЧНО')
+            bottom_stack = [ok_vals[i] + urgent_vals[i] for i in range(len(x))]
+            warning_bars = plt.bar(x, warning_vals, bottom=bottom_stack, color='#F9A825', label='Внимание')
+
+            # Подписи процентов и значений по каждому сегменту столбца
+            for i, xpos in enumerate(x):
+                total_val = ok_vals[i] + urgent_vals[i] + warning_vals[i]
+                if total_val <= 0:
+                    continue
+                # ok
+                if ok_vals[i] > 0:
+                    pct = ok_vals[i] / total_val * 100
+                    if pct >= 5:
+                        y_pos = ok_vals[i] / 2
+                        plt.text(
+                            xpos, y_pos,
+                            f"{ok_vals[i]} ({pct:.0f}%)",
+                            ha='center', va='center', rotation=90, fontsize=6, color='white'
+                        )
+                # urgent
+                if urgent_vals[i] > 0:
+                    pct = urgent_vals[i] / total_val * 100
+                    if pct >= 5:
+                        y_pos = ok_vals[i] + urgent_vals[i] / 2
+                        plt.text(
+                            xpos, y_pos,
+                            f"{urgent_vals[i]} ({pct:.0f}%)",
+                            ha='center', va='center', rotation=90, fontsize=6, color='white'
+                        )
+                # warning
+                if warning_vals[i] > 0:
+                    pct = warning_vals[i] / total_val * 100
+                    if pct >= 5:
+                        y_pos = ok_vals[i] + urgent_vals[i] + warning_vals[i] / 2
+                        plt.text(
+                            xpos, y_pos,
+                            f"{warning_vals[i]} ({pct:.0f}%)",
+                            ha='center', va='center', rotation=90, fontsize=6, color='black'
+                        )
+            labels = [d.strftime('%d.%m') for d in days_sorted]
+            tick_step = max(1, len(x) // 15)
+            tick_positions = list(range(0, len(x), tick_step))
+            tick_labels = [labels[i] for i in tick_positions]
+            plt.xticks(tick_positions, tick_labels, rotation=45, ha='right')
+            plt.ylabel('Количество')
+            plt.title('Статусы по дням (последние 62 дня)')
+            plt.legend(loc='upper left')
+            plt.tight_layout()
+            chart_path = PROGRAM_DIR / 'maintenance_status_62days.png'
+            plt.savefig(chart_path, dpi=150)
+            plt.close()
+    except Exception as e:
+        print(f"❌ Не удалось построить диаграмму: {e}")
+
 
     if urgent_items:
         total_urgent = sum(len(df) for df in urgent_items)
@@ -428,19 +509,35 @@ def create_email_body(urgent_items, warning_items, total_records, status_counts)
     body += f"\n\nСписок получателей: {', '.join(RECIPIENTS)}"
     body += f"\n\n🔧 v{VERSION} от {RELEASE_DATE}"
     
-    return body
+    return body, chart_path
 
 
-def send_email(body, recipients):
-    """Отправляет email через SMTP нескольким получателям"""
+def send_email(body, recipients, chart_path=None):
+    """Отправляет email через SMTP нескольким получателям. Если chart_path задан, встраивает изображение диаграммы в письмо."""
     try:
         # Создаем сообщение
-        msg = MIMEMultipart()
+        msg = MIMEMultipart('related')
         msg['From'] = SENDER_EMAIL
         msg['To'] = ", ".join(recipients)  # Все получатели в одной строке
         msg['Subject'] = "🔔 Напоминание о техническом обслуживании оборудования"
-        
-        msg.attach(MIMEText(body, 'plain', 'utf-8'))
+
+        alternative = MIMEMultipart('alternative')
+        msg.attach(alternative)
+
+        # Текстовая версия
+        alternative.attach(MIMEText(body, 'plain', 'utf-8'))
+
+        # HTML версия с изображением при наличии
+        if chart_path and Path(chart_path).exists():
+            html_body = body.replace('\n', '<br/>')
+            html_body += f"<br/><br/><b>Диаграмма за 62 дня:</b><br/><img src=\"cid:status_chart\" alt=\"Диаграмма\"/>"
+            alternative.attach(MIMEText(html_body, 'html', 'utf-8'))
+
+            with open(chart_path, 'rb') as img_file:
+                img = MIMEImage(img_file.read())
+                img.add_header('Content-ID', '<status_chart>')
+                img.add_header('Content-Disposition', 'inline', filename=Path(chart_path).name)
+                msg.attach(img)
         
         # Подключаемся к SMTP серверу
         server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
@@ -486,8 +583,8 @@ def main():
         print("Нет срочных напоминаний. Все оборудование в порядке.")
         return
     
-    # Формируем тело письма
-    email_body = create_email_body(alarm_items, warning_items, total_records, status_counts)
+    # Формируем тело письма и строим диаграмму
+    email_body, chart_path = create_email_body(alarm_items, warning_items, total_records, status_counts)
     print("\nСформировано письмо:")
     print("-" * 50)
     print(email_body)
@@ -495,7 +592,7 @@ def main():
     
     # Отправляем письмо всем получателям
     print(f"\nОтправляем письмо {len(RECIPIENTS)} получателям...")
-    if send_email(email_body, RECIPIENTS):
+    if send_email(email_body, RECIPIENTS, chart_path):
         print("Письма отправлены успешно")
     else:
         print("Не удалось отправить письма")
