@@ -6,7 +6,7 @@ __pycache__/
 ~$*.xlsx
 .~lock*
 maintenance_alert_history.json
-
+maintenance_status_62days.png
 # C extensions
 *.so
 

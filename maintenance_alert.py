@@ -8,6 +8,7 @@ from pathlib import Path
 import sys
 import json
 import matplotlib.pyplot as plt
+from typing import Dict, List, Tuple, Optional, Any
 
 # Версия программы
 VERSION = "0.9.10"
@@ -19,8 +20,40 @@ RESOURCES_DIR = PROGRAM_DIR / "resources"
 EXCEL_FILENAME = "Обслуживание ПК и шкафов АСУТП.xlsx"
 CONFIG_FILE = RESOURCES_DIR / "maintenance_alert_history.json"
 
+# SMTP настройки
+SMTP_SERVER = "mgd-ex1.pavlik-gold.ru"
+SMTP_PORT = 25
+SENDER_EMAIL = "maintenance.asutp@pavlik-gold.ru"
+
+# Список получателей
+RECIPIENTS = [
+    "asutp@pavlik-gold.ru",
+    # "ochkur.evgeniy@pavlik-gold.ru",
+    # "dorovik.roman@pavlik-gold.ru",
+]
+
+# Названия колонок Excel
+COLUMN_NAMES = [
+    "№", "Объект", "Наименование", "Обозначение", "Место расположения",
+    "Интервал ТО (дней)", "Напоминание (за дней)", "Дата последнего ТО",
+    "Дата следующего ТО", "Статус"
+]
+
+# Конфигурация листов Excel
+SHEETS_CONFIG = {
+    "ПК АСУ ТП": {"range": "A4:J300"},
+    "Шкафы АСУ ТП": {"range": "A4:J300"}
+}
+
+# Статусы обслуживания
+MAINTENANCE_STATUSES = ["СРОЧНО", "Внимание", "В норме"]
+
+
 def get_excel_file_path() -> Path:
-    """Ищет Excel-файл сначала в папке скрипта, затем уровнем выше. Возвращает путь (даже если файл не найден)."""
+    """
+    Ищет Excel-файл сначала в папке скрипта, затем уровнем выше.
+    Возвращает путь (даже если файл не найден).
+    """
     primary = PROGRAM_DIR / EXCEL_FILENAME
     if primary.exists():
         return primary
@@ -30,22 +63,8 @@ def get_excel_file_path() -> Path:
     # Если нигде не найден, возвращаем путь в папке скрипта (для понятного сообщения об ошибке при чтении)
     return primary
 
-EXCEL_FILE = get_excel_file_path()
-SHEETS_CONFIG = {
-    "ПК АСУ ТП": {"range": "A4:J300"},
-    "Шкафы АСУ ТП": {"range": "A4:J300"}
-}
-SMTP_SERVER = "mgd-ex1.pavlik-gold.ru"
-SMTP_PORT = 25
-SENDER_EMAIL = "maintenance.asutp@pavlik-gold.ru"  # Укажите ваш email отправителя
 
-# Список получателей
-RECIPIENTS = [
-    "asutp@pavlik-gold.ru",
-    #  "ochkur.evgeniy@pavlik-gold.ru",
-    #  "dorovik.roman@pavlik-gold.ru",
-    # Добавьте нужные email адреса
-]
+EXCEL_FILE = get_excel_file_path()
 
 
 def show_version():
@@ -56,41 +75,55 @@ def show_version():
     print("=" * 60)
 
 
-def load_config():
-    """Загружает конфигурацию из JSON файла"""
+def load_config() -> Dict[str, Any]:
+    """
+    Загружает конфигурацию из JSON файла.
+    Возвращает словарь с конфигурацией.
+    """
     try:
         if CONFIG_FILE.exists():
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                 config = json.load(f)
                 # Проверяем структуру и добавляем недостающие поля
-                if 'maintenance_history' not in config:
-                    config['maintenance_history'] = []
-                if 'last_update' not in config:
-                    config['last_update'] = None
-                if 'version' not in config:
-                    config['version'] = VERSION
-                return config
+                return _validate_config_structure(config)
         else:
             # Создаем новый файл конфигурации
-            config = {
-                "maintenance_history": [],
-                "last_update": None,
-                "version": VERSION
-            }
-            save_config(config)
-            return config
+            return _create_default_config()
     except Exception as e:
         print(f"Ошибка при загрузке конфигурации: {e}")
         # Возвращаем конфигурацию по умолчанию
-        return {
-            "maintenance_history": [],
-            "last_update": None,
-            "version": VERSION
-        }
+        return _create_default_config()
 
 
-def save_config(config):
-    """Сохраняет конфигурацию в JSON файл"""
+def _validate_config_structure(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Проверяет и корректирует структуру конфигурации"""
+    if 'maintenance_history' not in config:
+        config['maintenance_history'] = []
+    if 'last_update' not in config:
+        config['last_update'] = None
+    if 'version' not in config:
+        config['version'] = VERSION
+    return config
+
+
+def _create_default_config() -> Dict[str, Any]:
+    """Создает конфигурацию по умолчанию"""
+    config = {
+        "maintenance_history": [],
+        "last_update": None,
+        "version": VERSION
+    }
+    save_config(config)
+    return config
+
+
+def save_config(config: Dict[str, Any]) -> None:
+    """
+    Сохраняет конфигурацию в JSON файл.
+    
+    Args:
+        config: Словарь с конфигурацией для сохранения
+    """
     try:
         config['last_update'] = datetime.now().isoformat()
         config['version'] = VERSION
@@ -101,8 +134,22 @@ def save_config(config):
         print(f"❌ Ошибка при сохранении конфигурации: {e}")
 
 
-def update_maintenance_statistics(alarm_items, warning_items, total_records, status_counts):
-    """Обновляет статистику обслуживания на основе текущих данных"""
+def update_maintenance_statistics(alarm_items: List[pd.DataFrame], 
+                                warning_items: List[pd.DataFrame], 
+                                total_records: int, 
+                                status_counts: Dict[str, int]) -> Dict[str, Any]:
+    """
+    Обновляет статистику обслуживания на основе текущих данных.
+    
+    Args:
+        alarm_items: Список DataFrame с элементами СРОЧНО
+        warning_items: Список DataFrame с элементами Внимание
+        total_records: Общее количество записей
+        status_counts: Словарь с количеством элементов по статусам
+    
+    Returns:
+        Обновленная конфигурация
+    """
     config = load_config()
     
     # Получаем текущую дату
@@ -113,12 +160,8 @@ def update_maintenance_statistics(alarm_items, warning_items, total_records, sta
     print(f"🔍 Проверяем существование записи за {today.strftime('%d.%m.%Y')}...")
     
     # Проверяем, есть ли уже запись за сегодня
-    today_record_exists = False
-    for record in config['maintenance_history']:
-        if record['date'] == today_str:
-            today_record_exists = True
-            print(f"✅ Найдена существующая запись за {today.strftime('%d.%m.%Y')}: {record.get('ok', record.get('serviced', 0))} обслужено")
-            break
+    today_record_exists = any(record['date'] == today_str 
+                            for record in config['maintenance_history'])
     
     # Если запись за сегодня уже существует, не добавляем новую
     if today_record_exists:
@@ -159,8 +202,126 @@ def update_maintenance_statistics(alarm_items, warning_items, total_records, sta
         return config
 
 
-def get_maintenance_statistics():
-    """Получает статистику обслуживания за различные периоды"""
+def _compute_period_boundaries(base_date: datetime.date) -> Dict[str, datetime.date]:
+    """
+    Вычисляет границы периодов для статистики.
+    
+    Args:
+        base_date: Базовая дата для вычислений
+    
+    Returns:
+        Словарь с границами периодов
+    """
+    yesterday_local = base_date - timedelta(days=1)
+    day_before_yesterday_local = yesterday_local - timedelta(days=1)
+    week_start_local = base_date - timedelta(days=base_date.weekday())
+    last_week_start_local = week_start_local - timedelta(days=7)
+    last_week_end_local = week_start_local - timedelta(days=1)
+    prev_prev_week_start_local = last_week_start_local - timedelta(days=7)
+    prev_prev_week_end_local = last_week_start_local - timedelta(days=1)
+    month_start_local = base_date.replace(day=1)
+    last_month_end_local = month_start_local - timedelta(days=1)
+    last_month_start_local = last_month_end_local.replace(day=1)
+    prev_prev_month_end_local = last_month_start_local - timedelta(days=1)
+    prev_prev_month_start_local = prev_prev_month_end_local.replace(day=1)
+    
+    return {
+        "yesterday": yesterday_local,
+        "day_before_yesterday": day_before_yesterday_local,
+        "week_start": week_start_local,
+        "last_week_start": last_week_start_local,
+        "last_week_end": last_week_end_local,
+        "prev_prev_week_start": prev_prev_week_start_local,
+        "prev_prev_week_end": prev_prev_week_end_local,
+        "month_start": month_start_local,
+        "last_month_start": last_month_start_local,
+        "last_month_end": last_month_end_local,
+        "prev_prev_month_start": prev_prev_month_start_local,
+        "prev_prev_month_end": prev_prev_month_end_local,
+    }
+
+
+def _aggregate_raw_field(history_records: List[Dict], 
+                        today_local: datetime.date, 
+                        bounds: Dict[str, datetime.date], 
+                        extract_value) -> Dict[str, int]:
+    """
+    Агрегирует данные по периодам.
+    
+    Args:
+        history_records: История записей
+        today_local: Сегодняшняя дата
+        bounds: Границы периодов
+        extract_value: Функция извлечения значения из записи
+    
+    Returns:
+        Словарь с агрегированными данными
+    """
+    raw = {
+        "today": 0,
+        "yesterday": 0,
+        "day_before_yesterday": 0,
+        "this_week": 0,
+        "last_week": 0,
+        "week_before_last": 0,
+        "this_month": 0,
+        "last_month": 0,
+        "month_before_last": 0,
+    }
+    
+    for record in history_records:
+        record_date = datetime.fromisoformat(record['date']).date()
+        value = extract_value(record)
+        
+        if record_date == today_local:
+            raw["today"] = value
+        elif record_date == bounds["yesterday"]:
+            raw["yesterday"] = value
+        elif record_date == bounds["day_before_yesterday"]:
+            raw["day_before_yesterday"] = value
+        elif bounds["week_start"] <= record_date <= today_local:
+            raw["this_week"] = max(raw["this_week"], value)
+        elif bounds["last_week_start"] <= record_date <= bounds["last_week_end"]:
+            raw["last_week"] = max(raw["last_week"], value)
+        elif bounds["prev_prev_week_start"] <= record_date <= bounds["prev_prev_week_end"]:
+            raw["week_before_last"] = max(raw["week_before_last"], value)
+        elif bounds["month_start"] <= record_date <= today_local:
+            raw["this_month"] = max(raw["this_month"], value)
+        elif bounds["last_month_start"] <= record_date <= bounds["last_month_end"]:
+            raw["last_month"] = max(raw["last_month"], value)
+        elif bounds["prev_prev_month_start"] <= record_date <= bounds["prev_prev_month_end"]:
+            raw["month_before_last"] = max(raw["month_before_last"], value)
+    
+    return raw
+
+
+def _compute_delta_stats(raw_stats: Dict[str, int]) -> Dict[str, int]:
+    """
+    Вычисляет дельты для статистики.
+    
+    Args:
+        raw_stats: Сырые статистические данные
+    
+    Returns:
+        Словарь с дельтами
+    """
+    return {
+        "delta_ok_day": raw_stats["today"] - raw_stats["yesterday"],
+        "delta_ok_prev_day": raw_stats["yesterday"] - raw_stats["day_before_yesterday"],
+        "delta_ok_week": raw_stats["this_week"] - raw_stats["last_week"],
+        "delta_ok_prev_week": raw_stats["last_week"] - raw_stats["week_before_last"],
+        "delta_ok_month": raw_stats["this_month"] - raw_stats["last_month"],
+        "delta_ok_prev_month": raw_stats["last_month"] - raw_stats["month_before_last"],
+    }
+
+
+def get_maintenance_statistics() -> Dict[str, int]:
+    """
+    Получает статистику обслуживания за различные периоды.
+    
+    Returns:
+        Словарь со статистикой по периодам
+    """
     config = load_config()
     
     if not config['maintenance_history']:
@@ -173,121 +334,47 @@ def get_maintenance_statistics():
             "last_month": 0
         }
     
-    def _compute_period_boundaries(base_date):
-        yesterday_local = base_date - timedelta(days=1)
-        day_before_yesterday_local = yesterday_local - timedelta(days=1)
-        week_start_local = base_date - timedelta(days=base_date.weekday())
-        last_week_start_local = week_start_local - timedelta(days=7)
-        last_week_end_local = week_start_local - timedelta(days=1)
-        prev_prev_week_start_local = last_week_start_local - timedelta(days=7)
-        prev_prev_week_end_local = last_week_start_local - timedelta(days=1)
-        month_start_local = base_date.replace(day=1)
-        last_month_end_local = month_start_local - timedelta(days=1)
-        last_month_start_local = last_month_end_local.replace(day=1)
-        prev_prev_month_end_local = last_month_start_local - timedelta(days=1)
-        prev_prev_month_start_local = prev_prev_month_end_local.replace(day=1)
-        return {
-            "yesterday": yesterday_local,
-            "day_before_yesterday": day_before_yesterday_local,
-            "week_start": week_start_local,
-            "last_week_start": last_week_start_local,
-            "last_week_end": last_week_end_local,
-            "prev_prev_week_start": prev_prev_week_start_local,
-            "prev_prev_week_end": prev_prev_week_end_local,
-            "month_start": month_start_local,
-            "last_month_start": last_month_start_local,
-            "last_month_end": last_month_end_local,
-            "prev_prev_month_start": prev_prev_month_start_local,
-            "prev_prev_month_end": prev_prev_month_end_local,
-        }
-
-    def _aggregate_raw_field(history_records, today_local, bounds, extract_value):
-        raw = {
-        "today": 0,
-        "yesterday": 0,
-            "day_before_yesterday": 0,
-        "this_week": 0,
-        "last_week": 0,
-            "week_before_last": 0,
-        "this_month": 0,
-            "last_month": 0,
-            "month_before_last": 0,
-        }
-        for record in history_records:
-            record_date = datetime.fromisoformat(record['date']).date()
-            value = extract_value(record)
-            if record_date == today_local:
-                raw["today"] = value
-            elif record_date == bounds["yesterday"]:
-                raw["yesterday"] = value
-            elif record_date == bounds["day_before_yesterday"]:
-                raw["day_before_yesterday"] = value
-            elif bounds["week_start"] <= record_date <= today_local:
-                raw["this_week"] = max(raw["this_week"], value)
-            elif bounds["last_week_start"] <= record_date <= bounds["last_week_end"]:
-                raw["last_week"] = max(raw["last_week"], value)
-            elif bounds["prev_prev_week_start"] <= record_date <= bounds["prev_prev_week_end"]:
-                raw["week_before_last"] = max(raw["week_before_last"], value)
-            elif bounds["month_start"] <= record_date <= today_local:
-                raw["this_month"] = max(raw["this_month"], value)
-            elif bounds["last_month_start"] <= record_date <= bounds["last_month_end"]:
-                raw["last_month"] = max(raw["last_month"], value)
-            elif bounds["prev_prev_month_start"] <= record_date <= bounds["prev_prev_month_end"]:
-                raw["month_before_last"] = max(raw["month_before_last"], value)
-        return raw
-
-    def _compute_ok_deltas(raw_stats):
-        return {
-            "delta_ok_day": raw_stats["today"] - raw_stats["yesterday"],
-            "delta_ok_week": raw_stats["this_week"] - raw_stats["last_week"],
-            "delta_ok_month": raw_stats["this_month"] - raw_stats["last_month"],
-        }
-
     today = datetime.now().date()
     bounds = _compute_period_boundaries(today)
+    
+    # Агрегируем данные для обслуженных и срочных элементов
     ok_raw_stats = _aggregate_raw_field(
         config['maintenance_history'], today, bounds,
         lambda rec: rec.get('ok', rec.get('serviced', 0))
     )
+    
     urgent_raw_stats = _aggregate_raw_field(
         config['maintenance_history'], today, bounds,
         lambda rec: rec.get('urgent', 0)
     )
-    ok_delta_stats = {
-        "delta_ok_day": ok_raw_stats["today"] - ok_raw_stats["yesterday"],
-        "delta_ok_prev_day": ok_raw_stats["yesterday"] - ok_raw_stats["day_before_yesterday"],
-        "delta_ok_week": ok_raw_stats["this_week"] - ok_raw_stats["last_week"],
-        "delta_ok_prev_week": ok_raw_stats["last_week"] - ok_raw_stats["week_before_last"],
-        "delta_ok_month": ok_raw_stats["this_month"] - ok_raw_stats["last_month"],
-        "delta_ok_prev_month": ok_raw_stats["last_month"] - ok_raw_stats["month_before_last"],
+    
+    # Вычисляем дельты
+    ok_delta_stats = _compute_delta_stats(ok_raw_stats)
+    urgent_delta_stats = _compute_delta_stats(urgent_raw_stats)
+    
+    # Объединяем все данные
+    merged = {
+        **ok_raw_stats, 
+        **ok_delta_stats, 
+        **{f"urgent_{k}": v for k, v in urgent_raw_stats.items()}, 
+        **urgent_delta_stats
     }
-    urgent_delta_stats = {
-        "delta_urgent_day": urgent_raw_stats["today"] - urgent_raw_stats["yesterday"],
-        "delta_urgent_prev_day": urgent_raw_stats["yesterday"] - urgent_raw_stats["day_before_yesterday"],
-        "delta_urgent_week": urgent_raw_stats["this_week"] - urgent_raw_stats["last_week"],
-        "delta_urgent_prev_week": urgent_raw_stats["last_week"] - urgent_raw_stats["week_before_last"],
-        "delta_urgent_month": urgent_raw_stats["this_month"] - urgent_raw_stats["last_month"],
-        "delta_urgent_prev_month": urgent_raw_stats["last_month"] - urgent_raw_stats["month_before_last"],
-    }
-
-    merged = {**ok_raw_stats, **ok_delta_stats, **{f"urgent_{k}": v for k, v in urgent_raw_stats.items()}, **urgent_delta_stats}
     merged["today"] = merged["delta_ok_day"]
+    
     return merged
 
 
-def read_excel_data():
-    """Читает данные из Excel файла с учетом конкретных диапазонов"""
+def read_excel_data() -> Tuple[List[pd.DataFrame], List[pd.DataFrame], int, Dict[str, int]]:
+    """
+    Читает данные из Excel файла с учетом конкретных диапазонов.
+    
+    Returns:
+        Кортеж: (alarm_items, warning_items, total_records, status_counts)
+    """
     alarm_items = []
     warning_items = []
     total_records = 0
-    status_counts = {"СРОЧНО": 0, "Внимание": 0, "В норме": 0}
-    
-    # Названия колонок (должны соответствовать заголовкам в строке 4)
-    column_names = [
-        "№", "Объект", "Наименование", "Обозначение", "Место расположения",
-        "Интервал ТО (дней)", "Напоминание (за дней)", "Дата последнего ТО",
-        "Дата следующего ТО", "Статус"
-    ]
+    status_counts = {status: 0 for status in MAINTENANCE_STATUSES}
     
     for sheet_name, config in SHEETS_CONFIG.items():
         try:
@@ -302,11 +389,11 @@ def read_excel_data():
             )
             
             # Ограничиваем количество колонок
-            if len(df.columns) > len(column_names):
-                df = df.iloc[:, :len(column_names)]
+            if len(df.columns) > len(COLUMN_NAMES):
+                df = df.iloc[:, :len(COLUMN_NAMES)]
             
             # Назначаем правильные имена колонок
-            df.columns = column_names
+            df.columns = COLUMN_NAMES
             
             # Удаляем пустые строки
             df = df.dropna(how='all')
@@ -341,8 +428,16 @@ def read_excel_data():
     return alarm_items, warning_items, total_records, status_counts
 
 
-def format_date(date_value):
-    """Форматирует дату в формат dd.mm.yyyy"""
+def format_date(date_value) -> str:
+    """
+    Форматирует дату в формат dd.mm.yyyy.
+    
+    Args:
+        date_value: Значение даты для форматирования
+    
+    Returns:
+        Отформатированная строка даты
+    """
     if pd.notna(date_value) and hasattr(date_value, 'strftime'):
         return date_value.strftime('%d.%m.%Y')
     elif pd.notna(date_value):
@@ -351,8 +446,17 @@ def format_date(date_value):
         return "Не указана"
 
 
-def format_item_info(item, item_type):
-    """Форматирует информацию об элементе"""
+def format_item_info(item: pd.Series, item_type: str) -> str:
+    """
+    Форматирует информацию об элементе.
+    
+    Args:
+        item: Серия данных об элементе
+        item_type: Тип элемента
+    
+    Returns:
+        Отформатированная строка информации
+    """
     info = f"""
 Тип: {item_type}
 Объект: {item['Объект']}
@@ -367,19 +471,155 @@ def format_item_info(item, item_type):
     return info
 
 
-def create_email_body(urgent_items, warning_items, total_records, status_counts):
-    """Создает HTML-тело письма и путь к встроенному изображению диаграммы (если построена)."""
+def create_maintenance_chart() -> Optional[Path]:
+    """
+    Создает диаграмму статусов обслуживания за последние 62 дня.
     
+    Returns:
+        Путь к файлу диаграммы или None в случае ошибки
+    """
+    try:
+        config = load_config()
+        if not config['maintenance_history']:
+            return None
+            
+        today = datetime.now().date()
+        start_date = today - timedelta(days=61)
+        
+        # Собираем значения за каждый день диапазона
+        date_to_vals = {}
+        for rec in config['maintenance_history']:
+            rec_date = datetime.fromisoformat(rec['date']).date()
+            if start_date <= rec_date <= today:
+                date_to_vals[rec_date] = (
+                    rec.get('ok', rec.get('serviced', 0)),
+                    rec.get('urgent', 0),
+                    rec.get('warning', 0),
+                )
+        
+        # Подготавливаем данные для графика
+        days_sorted = [start_date + timedelta(days=i) for i in range(62)]
+        ok_vals = [date_to_vals.get(d, (0, 0, 0))[0] for d in days_sorted]
+        urgent_vals = [date_to_vals.get(d, (0, 0, 0))[1] for d in days_sorted]
+        warning_vals = [date_to_vals.get(d, (0, 0, 0))[2] for d in days_sorted]
+
+        # Создаем график
+        x = list(range(len(days_sorted)))
+        plt.figure(figsize=(9, 3))
+
+        urgent_bars = plt.bar(x, urgent_vals, bottom=ok_vals, width=0.9, color='#C62828', label='СРОЧНО')        
+        ok_bars = plt.bar(x, ok_vals, width=0.9, color='#2E7D32', label='Не требуется')
+        bottom_stack = [ok_vals[i] + urgent_vals[i] for i in range(len(x))]
+        warning_bars = plt.bar(x, warning_vals, bottom=bottom_stack, width=0.9, color='#F9A825', label='Внимание')
+
+        # Добавляем подписи значений
+        _add_chart_labels(x, ok_vals, urgent_vals, warning_vals)
+        
+        # Настраиваем оси и легенду
+        labels = [d.strftime('%d.%m') for d in days_sorted]
+        tick_step = max(1, len(x) // 31)
+        tick_positions = list(range(0, len(x), tick_step))
+        tick_labels = [labels[i] for i in tick_positions]
+        plt.xticks(tick_positions, tick_labels, rotation=45, ha='right', fontsize=6)
+        plt.yticks(fontsize=6)
+        # plt.ylabel('Количество', fontsize=8)
+        plt.title('Статусы по дням (последние 62 дня)', fontsize=7)
+        plt.legend(loc='upper left',  fontsize=7)
+        plt.tight_layout()
+        plt.grid(axis='y', linestyle='--', linewidth=0.5, alpha=0.7)
+
+        # Сохраняем диаграмму
+        RESOURCES_DIR.mkdir(parents=True, exist_ok=True)
+        chart_path = RESOURCES_DIR / 'maintenance_status_62days.png'
+        plt.savefig(chart_path, dpi=150)
+        plt.close()
+        
+        return chart_path
+        
+    except Exception as e:
+        print(f"❌ Не удалось построить диаграмму: {e}")
+        return None
+
+
+def _add_chart_labels(x: List[int], 
+                     ok_vals: List[int], 
+                     urgent_vals: List[int], 
+                     warning_vals: List[int]) -> None:
+    """
+    Добавляет подписи значений на диаграмму.
+    
+    Args:
+        x: Позиции по оси X
+        ok_vals: Значения для "В норме"
+        urgent_vals: Значения для "СРОЧНО"
+        warning_vals: Значения для "Внимание"
+    """
+    for i, xpos in enumerate(x):
+        total_val = ok_vals[i] + urgent_vals[i] + warning_vals[i]
+        if total_val <= 0:
+            continue
+            
+        # Подписи для "В норме"
+        if ok_vals[i] > 0:
+            pct = ok_vals[i] / total_val * 100
+            if pct >= 5:
+                y_pos = ok_vals[i] / 2
+                plt.text(
+                    xpos, y_pos,
+                    f"{ok_vals[i]}",
+                    ha='center', va='center', rotation=90, fontsize=6, color='white'
+                )
+        
+        # Подписи для "СРОЧНО"
+        if urgent_vals[i] > 0:
+            pct = urgent_vals[i] / total_val * 100
+            if pct >= 5:
+                y_pos = ok_vals[i] + urgent_vals[i] / 2
+                plt.text(
+                    xpos, y_pos,
+                    f"{urgent_vals[i]}",
+                    ha='center', va='center', rotation=90, fontsize=6, color='white'
+                )
+        
+        # Подписи для "Внимание"
+        if warning_vals[i] > 0:
+            pct = warning_vals[i] / total_val * 100
+            if pct >= 5:
+                y_pos = ok_vals[i] + urgent_vals[i] + warning_vals[i] / 2
+                plt.text(
+                    xpos, y_pos,
+                    f"{warning_vals[i]}",
+                    ha='center', va='center', rotation=90, fontsize=6, color='black'
+                )
+
+
+def create_email_body(urgent_items: List[pd.DataFrame], 
+                     warning_items: List[pd.DataFrame], 
+                     total_records: int, 
+                     status_counts: Dict[str, int]) -> Tuple[str, Optional[Path]]:
+    """
+    Создает HTML-тело письма и путь к встроенному изображению диаграммы.
+    
+    Args:
+        urgent_items: Список DataFrame с элементами СРОЧНО
+        warning_items: Список DataFrame с элементами Внимание
+        total_records: Общее количество записей
+        status_counts: Словарь с количеством элементов по статусам
+    
+    Returns:
+        Кортеж: (HTML-тело письма, путь к диаграмме)
+    """
     # Вычисляем процент необслуженного оборудования
     unserviced_count = status_counts['СРОЧНО'] + status_counts['Внимание']
     unserviced_percentage = (unserviced_count / total_records * 100) if total_records > 0 else 0
     
-    html_parts: list[str] = []
+    html_parts: List[str] = []
+    
     # Верхняя сводка
     html_parts.append(
         (
             "<div>"
-            "<b>ТЕКУЩЕЕ СОСТОЯНИЕ:</b><br/>"
+            #f"<b>СРОЧНО:</b> <span style='color: red; font-weight: bold;'>{status_counts['СРОЧНО']}</span><br/>"
             f"СРОЧНО: {status_counts['СРОЧНО']}<br/>"
             f"Внимание: {status_counts['Внимание']}<br/>"
             f"Не требуется: {status_counts['В норме']}<br/>"
@@ -389,99 +629,20 @@ def create_email_body(urgent_items, warning_items, total_records, status_counts)
         )
     )
 
-    # Построение диаграммы за последние 62 дня по данным истории
-    chart_path = None
-    try:
-        config = load_config()
-        if config['maintenance_history']:
-            today = datetime.now().date()
-            start_date = today - timedelta(days=61)
-            # Собираем значения за каждый день диапазона (включая отсутствующие дни)
-            date_to_vals = {}
-            for rec in config['maintenance_history']:
-                rec_date = datetime.fromisoformat(rec['date']).date()
-                if start_date <= rec_date <= today:
-                    date_to_vals[rec_date] = (
-                        rec.get('ok', rec.get('serviced', 0)),
-                        rec.get('urgent', 0),
-                        rec.get('warning', 0),
-                    )
-            days_sorted = [start_date + timedelta(days=i) for i in range(62)]
-            ok_vals = [date_to_vals.get(d, (0, 0, 0))[0] for d in days_sorted]
-            urgent_vals = [date_to_vals.get(d, (0, 0, 0))[1] for d in days_sorted]
-            warning_vals = [date_to_vals.get(d, (0, 0, 0))[2] for d in days_sorted]
-
-            x = list(range(len(days_sorted)))
-            plt.figure(figsize=(9, 3))
-            ok_bars = plt.bar(x, ok_vals, width=0.9, color='#2E7D32', label='В норме')
-            urgent_bars = plt.bar(x, urgent_vals, bottom=ok_vals, width=0.9, color='#C62828', label='СРОЧНО')
-            bottom_stack = [ok_vals[i] + urgent_vals[i] for i in range(len(x))]
-            warning_bars = plt.bar(x, warning_vals, bottom=bottom_stack, width=0.9, color='#F9A825', label='Внимание')
-
-            # Подписи процентов и значений по каждому сегменту столбца
-            for i, xpos in enumerate(x):
-                total_val = ok_vals[i] + urgent_vals[i] + warning_vals[i]
-                if total_val <= 0:
-                    continue
-                # ok
-                if ok_vals[i] > 0:
-                    pct = ok_vals[i] / total_val * 100
-                    if pct >= 5:
-                        y_pos = ok_vals[i] / 2
-                        plt.text(
-                            xpos, y_pos,
-                            f"{ok_vals[i]}", # ({pct:.0f}%)
-                            ha='center', va='center', rotation=90, fontsize=6, color='white'
-                        )
-                # urgent
-                if urgent_vals[i] > 0:
-                    pct = urgent_vals[i] / total_val * 100
-                    if pct >= 5:
-                        y_pos = ok_vals[i] + urgent_vals[i] / 2
-                        plt.text(
-                            xpos, y_pos,
-                            f"{urgent_vals[i]}", # ({pct:.0f}%)
-                            ha='center', va='center', rotation=90, fontsize=6, color='white'
-                        )
-                # warning
-                if warning_vals[i] > 0:
-                    pct = warning_vals[i] / total_val * 100
-                    if pct >= 5:
-                        y_pos = ok_vals[i] + urgent_vals[i] + warning_vals[i] / 2
-                        plt.text(
-                            xpos, y_pos,
-                            f"{warning_vals[i]}", # ({pct:.0f}%)
-                            ha='center', va='center', rotation=90, fontsize=6, color='black'
-                        )
-            labels = [d.strftime('%d.%m') for d in days_sorted]
-            tick_step = max(1, len(x) // 15)
-            tick_positions = list(range(0, len(x), tick_step))
-            tick_labels = [labels[i] for i in tick_positions]
-            plt.xticks(tick_positions, tick_labels, rotation=45, ha='right')
-            plt.ylabel('Количество')
-            plt.title('Статусы по дням (последние 62 дня)')
-            plt.legend(loc='upper left')
-            plt.tight_layout()
-            # Сохраняем диаграмму в папку ресурсов
-            RESOURCES_DIR.mkdir(parents=True, exist_ok=True)
-            chart_path = RESOURCES_DIR / 'maintenance_status_62days.png'
-            plt.savefig(chart_path, dpi=150)
-            plt.close()
-    except Exception as e:
-        print(f"❌ Не удалось построить диаграмму: {e}")
-
+    # Создаем диаграмму
+    chart_path = create_maintenance_chart()
 
     # Вставляем диаграмму ПЕРЕД секцией срочных работ
     if chart_path and Path(chart_path).exists():
         html_parts.append(
             (
                 "<div>"
-                "<b>Диаграмма за 62 дня:</b><br/>"
                 "<img src=\"cid:status_chart\" alt=\"Диаграмма\"/>"
                 "</div><br/>"
             )
         )
 
+    # Срочные элементы
     if urgent_items:
         total_urgent = sum(len(df) for df in urgent_items)
         html_parts.append(f"<div><b>🚨 СРОЧНОЕ ОБСЛУЖИВАНИЕ (записей: {total_urgent}):</b></div>")
@@ -491,6 +652,7 @@ def create_email_body(urgent_items, warning_items, total_records, status_counts)
                 html_parts.append("<div>" + format_item_info(item, item['Тип']).replace('\n', '<br/>') + "</div>")
                 html_parts.append("<hr/>")
     
+    # Элементы требующие внимания
     if warning_items:
         total_warning = sum(len(df) for df in warning_items)
         html_parts.append(f"<div><b>⚠️ ВНИМАНИЕ! Приближается срок обслуживания. (записей: {total_warning}):</b></div>")
@@ -500,6 +662,7 @@ def create_email_body(urgent_items, warning_items, total_records, status_counts)
                 html_parts.append("<div>" + format_item_info(item, item['Тип']).replace('\n', '<br/>') + "</div>")
                 html_parts.append("<hr/>")
 
+    # Подвал письма
     html_parts.append(
         (
             "<br/><div>"
@@ -516,19 +679,29 @@ def create_email_body(urgent_items, warning_items, total_records, status_counts)
     return html_body, chart_path
 
 
-def send_email(html_body, recipients, chart_path=None):
-    """Отправляет email через SMTP нескольким получателям. Вставляет HTML и inline-диаграмму при наличии."""
+def send_email(html_body: str, recipients: List[str], chart_path: Optional[Path] = None) -> bool:
+    """
+    Отправляет email через SMTP нескольким получателям.
+    
+    Args:
+        html_body: HTML-тело письма
+        recipients: Список адресов получателей
+        chart_path: Путь к файлу диаграммы (опционально)
+    
+    Returns:
+        True если письмо отправлено успешно, иначе False
+    """
     try:
         # Создаем сообщение
         msg = MIMEMultipart('related')
         msg['From'] = SENDER_EMAIL
-        msg['To'] = ", ".join(recipients)  # Все получатели в одной строке
+        msg['To'] = ", ".join(recipients)
         msg['Subject'] = "🔔 Напоминание о техническом обслуживании оборудования"
         
         alternative = MIMEMultipart('alternative')
         msg.attach(alternative)
 
-        # Прямая HTML-версия с изображением при наличии
+        # Добавляем HTML-контент и изображение при наличии
         if chart_path and Path(chart_path).exists():
             alternative.attach(MIMEText(html_body, 'html', 'utf-8'))
 
@@ -540,11 +713,9 @@ def send_email(html_body, recipients, chart_path=None):
         else:
             alternative.attach(MIMEText(html_body, 'html', 'utf-8'))
         
-        # Подключаемся к SMTP серверу
+        # Подключаемся к SMTP серверу и отправляем письмо
         server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
         # Не используем starttls() для порта 25 без шифрования
-        
-        # Отправляем письмо всем получателям
         server.sendmail(SENDER_EMAIL, recipients, msg.as_string())
         server.quit()
         
@@ -557,7 +728,7 @@ def send_email(html_body, recipients, chart_path=None):
 
 
 def main():
-    """Эта функция выполняется первой в программе"""
+    """Основная функция программы"""
     print("🚀 ПРОГРАММА ЗАПУЩЕНА")
     print("Начинаем проверку графика технического обслуживания...")
     print(f"Получатели: {', '.join(RECIPIENTS)}")
@@ -587,9 +758,6 @@ def main():
     # Формируем тело письма и строим диаграмму
     email_body, chart_path = create_email_body(alarm_items, warning_items, total_records, status_counts)
     print("\nСформировано письмо:")
-    # print("-" * 50)
-    # print(email_body)
-    # print("-" * 50)
     
     # Отправляем письмо всем получателям
     print(f"\nОтправляем письмо {len(RECIPIENTS)} получателям...")
