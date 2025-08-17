@@ -11,14 +11,14 @@ import matplotlib.pyplot as plt
 from typing import Dict, List, Tuple, Optional, Any
 
 # Версия программы
-VERSION = "0.9.10"
-RELEASE_DATE = "14.08.2025"
+VERSION = "1.0.0"
+RELEASE_DATE = "17.08.2025"
 PROGRAM_DIR = Path(__file__).parent.absolute()
-RESOURCES_DIR = PROGRAM_DIR / "resources"
+DATA_DIR = PROGRAM_DIR / "data"
 
 # Настройки
 EXCEL_FILENAME = "Обслуживание ПК и шкафов АСУТП.xlsx"
-CONFIG_FILE = RESOURCES_DIR / "maintenance_alert_history.json"
+CONFIG_FILE = DATA_DIR / "maintenance_alert_history.json"
 
 # SMTP настройки
 SMTP_SERVER = "mgd-ex1.pavlik-gold.ru"
@@ -529,8 +529,8 @@ def create_maintenance_chart() -> Optional[Path]:
         plt.grid(axis='y', linestyle='--', linewidth=0.5, alpha=0.7)
 
         # Сохраняем диаграмму
-        RESOURCES_DIR.mkdir(parents=True, exist_ok=True)
-        chart_path = RESOURCES_DIR / 'maintenance_status_62days.png'
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        chart_path = DATA_DIR / 'maintenance_status_62days.png'
         plt.savefig(chart_path, dpi=150)
         plt.close()
         
@@ -610,7 +610,7 @@ def create_email_body(urgent_items: List[pd.DataFrame],
         Кортеж: (HTML-тело письма, путь к диаграмме)
     """
     # Вычисляем процент необслуженного оборудования
-    unserviced_count = status_counts['СРОЧНО'] + status_counts['Внимание']
+    unserviced_count = status_counts['СРОЧНО'] #+ status_counts['Внимание']
     unserviced_percentage = (unserviced_count / total_records * 100) if total_records > 0 else 0
     
     html_parts: List[str] = []
@@ -619,12 +619,10 @@ def create_email_body(urgent_items: List[pd.DataFrame],
     html_parts.append(
         (
             "<div>"
-            #f"<b>СРОЧНО:</b> <span style='color: red; font-weight: bold;'>{status_counts['СРОЧНО']}</span><br/>"
-            f"СРОЧНО: {status_counts['СРОЧНО']}<br/>"
-            f"Внимание: {status_counts['Внимание']}<br/>"
-            f"Не требуется: {status_counts['В норме']}<br/>"
+            f"<b>СРОЧНО:</b> <span style='color: red; font-weight: bold;'>{status_counts['СРОЧНО']}</span> ({unserviced_percentage:.1f}%)<br/>"
+            f"Не требуется: <span style='color: green; font-weight: bold;'> {status_counts['В норме']}</span><br/>"
+            f"Внимание: <span style='color: yellow; font-weight: bold;'>{status_counts['Внимание']}</span><br/>"
             f"Всего: {total_records}<br/>"
-            f"Необслужено: {unserviced_count} ({unserviced_percentage:.1f}%)"
             "</div><br/>"
         )
     )
