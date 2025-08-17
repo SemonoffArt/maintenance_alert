@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from typing import Dict, List, Tuple, Optional, Any
 
 # Версия программы
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 RELEASE_DATE = "17.08.2025"
 PROGRAM_DIR = Path(__file__).parent.absolute()
 DATA_DIR = PROGRAM_DIR / "data"
@@ -514,10 +514,10 @@ def create_maintenance_chart() -> Optional[Path]:
             spine.set_linewidth(0.8)
 
 
-        urgent_bars = plt.bar(x, urgent_vals, bottom=ok_vals, width=0.9, color='#C62828', label='СРОЧНО')        
-        ok_bars = plt.bar(x, ok_vals, width=0.9, color='#2E7D32', label='Не требуется')
+        urgent_bars = plt.bar(x, urgent_vals, bottom=ok_vals, width=0.9, color='#e74c3c', label='СРОЧНО')        
+        ok_bars = plt.bar(x, ok_vals, width=0.9, color='#18bc9c', label='Не требуется')
         bottom_stack = [ok_vals[i] + urgent_vals[i] for i in range(len(x))]
-        warning_bars = plt.bar(x, warning_vals, bottom=bottom_stack, width=0.9, color='#F9A825', label='Внимание')
+        warning_bars = plt.bar(x, warning_vals, bottom=bottom_stack, width=0.9, color='#f39c12', label='Внимание')
 
         # Добавляем подписи значений
         _add_chart_labels(x, ok_vals, urgent_vals, warning_vals)
