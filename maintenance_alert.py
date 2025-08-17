@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from typing import Dict, List, Tuple, Optional, Any
 
 # Версия программы
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 RELEASE_DATE = "17.08.2025"
 PROGRAM_DIR = Path(__file__).parent.absolute()
 DATA_DIR = PROGRAM_DIR / "data"
@@ -531,7 +531,7 @@ def create_maintenance_chart() -> Optional[Path]:
         plt.yticks(fontsize=6, color="#2c3e50")
         # plt.ylabel('Количество', fontsize=8)
         plt.title('Статусы по дням (последние 62 дня)', fontsize=7, color="#2c3e50")
-        plt.legend(loc='upper left',  fontsize=7)
+        plt.legend(loc='upper left',  fontsize=7) # labelcolor="#2c3e50"
         plt.tight_layout()
         plt.grid(axis='y', linestyle='--', linewidth=0.5, alpha=0.7)
 
@@ -630,7 +630,7 @@ def create_email_body(urgent_items: List[pd.DataFrame],
             <div style="display: flex; justify-content: space-around; text-align: center; flex-wrap: wrap;">
                 <div style="margin: 5px;">
                     <div style="font-size: 12px; color: #ffd6d6; margin-bottom: 3px;">🚨 СРОЧНО</div>
-                    <div style="font-size: 20px; font-weight: bold; color: #ff6b6b;">{status_counts['СРОЧНО']}</div>
+                    <div style="font-size: 20px; font-weight: bold; color: #ff6b6b;">{status_counts['СРОЧНО']} ({unserviced_percentage:.1f}%) </div>
                 </div>
                 
                 <div style="margin: 5px;">
