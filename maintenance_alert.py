@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 from typing import Dict, List, Tuple, Optional, Any
 
 # Версия программы
-VERSION = "1.0.3"
-RELEASE_DATE = "17.08.2025"
+VERSION = "1.1.0"
+RELEASE_DATE = "18.08.2025"
 PROGRAM_DIR = Path(__file__).parent.absolute()
 DATA_DIR = PROGRAM_DIR / "data"
 
@@ -141,6 +141,7 @@ def update_maintenance_statistics(alarm_items: List[pd.DataFrame],
                                 status_counts: Dict[str, int]) -> Dict[str, Any]:
     """
     Обновляет статистику обслуживания на основе текущих данных.
+    Если запись за сегодняшний день существует, то перезаписываем её.
     
     Args:
         alarm_items: Список DataFrame с элементами СРОЧНО
@@ -160,33 +161,37 @@ def update_maintenance_statistics(alarm_items: List[pd.DataFrame],
     
     print(f"🔍 Проверяем существование записи за {today.strftime('%d.%m.%Y')}...")
     
+    # Подсчитываем обслуженное оборудование (статус "В норме")
+    ok_count = status_counts.get('В норме', 0)
+    
+    # Создаем запись о текущем состоянии
+    maintenance_record = {
+        "date": today_str,
+        "total_equipment": total_records,
+        "ok": ok_count,
+        "urgent": status_counts.get('СРОЧНО', 0),
+        "warning": status_counts.get('Внимание', 0),
+        "timestamp": now.isoformat()
+    }
+    
     # Проверяем, есть ли уже запись за сегодня
-    today_record_exists = any(record['date'] == today_str 
-                            for record in config['maintenance_history'])
-    
-    # Если запись за сегодня уже существует, не добавляем новую
-    if today_record_exists:
-        print(f"✅ Запись за {today.strftime('%d.%m.%Y')} уже существует в истории, пропускаем добавление")
-        return config
-    
-    print(f"📝 Создаем новую запись за {today.strftime('%d.%m.%Y')}...")
+    today_record_index = None
+    for i, record in enumerate(config['maintenance_history']):
+        if record['date'] == today_str:
+            today_record_index = i
+            break
     
     try:
-        # Подсчитываем обслуженное оборудование (статус "В норме")
-        ok_count = status_counts.get('В норме', 0)
-        
-        # Создаем запись о текущем состоянии
-        maintenance_record = {
-            "date": today_str,
-            "total_equipment": total_records,
-            "ok": ok_count,
-            "urgent": status_counts.get('СРОЧНО', 0),
-            "warning": status_counts.get('Внимание', 0),
-            "timestamp": now.isoformat()
-        }
-        
-        # Добавляем запись в историю
-        config['maintenance_history'].append(maintenance_record)
+        if today_record_index is not None:
+            # Перезаписываем существующую запись
+            print(f"📝 Перезаписываем существующую запись за {today.strftime('%d.%m.%Y')}...")
+            config['maintenance_history'][today_record_index] = maintenance_record
+            action = "обновлена"
+        else:
+            # Добавляем новую запись
+            print(f"📝 Создаем новую запись за {today.strftime('%d.%m.%Y')}...")
+            config['maintenance_history'].append(maintenance_record)
+            action = "добавлена"
         
         # Ограничиваем историю последними 120 записями
         if len(config['maintenance_history']) > 120:
@@ -195,7 +200,7 @@ def update_maintenance_statistics(alarm_items: List[pd.DataFrame],
         # Сохраняем обновленную конфигурацию
         save_config(config)
         
-        print(f"✅ Добавлена новая запись за {today.strftime('%d.%m.%Y')}: {ok_count} обслужено")
+        print(f"✅ Запись за {today.strftime('%d.%m.%Y')} {action}: {ok_count} обслужено")
         return config
         
     except Exception as e:
