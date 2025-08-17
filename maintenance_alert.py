@@ -515,7 +515,7 @@ def create_maintenance_chart() -> Optional[Path]:
 
 
         urgent_bars = plt.bar(x, urgent_vals, bottom=ok_vals, width=0.9, color='#e74c3c', label='СРОЧНО')        
-        ok_bars = plt.bar(x, ok_vals, width=0.9, color='#18bc9c', label='Не требуется')
+        ok_bars = plt.bar(x, ok_vals, width=0.9, color='#18bc9c', label='В норме')
         bottom_stack = [ok_vals[i] + urgent_vals[i] for i in range(len(x))]
         warning_bars = plt.bar(x, warning_vals, bottom=bottom_stack, width=0.9, color='#f39c12', label='Внимание')
 
@@ -628,27 +628,27 @@ def create_email_body(urgent_items: List[pd.DataFrame],
         <div style="background-color: #2c3e50; border-radius: 8px; padding: 15px; 
                     color: white; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
             <div style="display: flex; justify-content: space-around; text-align: center; flex-wrap: wrap;">
-                <div style="margin: 5px;">
+                <div style="margin: 5px; ">
                     <div style="font-size: 12px; color: #ffd6d6; margin-bottom: 3px;">🚨 СРОЧНО</div>
                     <div style="font-size: 20px; font-weight: bold; color: #ff6b6b;">{status_counts['СРОЧНО']} ({unserviced_percentage:.1f}%) </div>
                 </div>
                 
-                <div style="margin: 5px;">
+                <div style="margin: 5px; margin-left: 20px;">
                     <div style="font-size: 12px; color: #ffe082; margin-bottom: 3px;">⚠️ Внимание</div>
                     <div style="font-size: 20px; font-weight: bold; color: #ffd54f;">{status_counts['Внимание']}</div>
                 </div>
                 
-                <div style="margin: 5px;">
+                <div style="margin: 5px; margin-left: 20px;">
                     <div style="font-size: 12px; color: #a5d6a7; margin-bottom: 3px;">✅ В норме</div>
                     <div style="font-size: 20px; font-weight: bold; color: #81c784;">{status_counts['В норме']}</div>
                 </div>
                 
-                <div style="margin: 5px;">
+                <div style="margin: 5px; margin-left: 20px;">
                     <div style="font-size: 12px; color: #bbdefb; margin-bottom: 3px;">📊 Всего</div>
                     <div style="font-size: 20px; font-weight: bold; color: #4fc3f7;">{total_records}</div>
                 </div>
 
-                <div style="margin-left: 20px;">
+                <div style="margin-left: 25px;">
                     <img src="cid:app_icon" alt="Иконка приложения" style="width: 52px; height: 52px; border-radius: 8px;">
                 </div>
 
