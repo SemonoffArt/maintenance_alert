@@ -1,3 +1,4 @@
+from turtle import color
 import pandas as pd
 from datetime import datetime, timedelta
 import smtplib
@@ -11,7 +12,7 @@ import matplotlib.pyplot as plt
 from typing import Dict, List, Tuple, Optional, Any
 
 # Версия программы
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 RELEASE_DATE = "17.08.2025"
 PROGRAM_DIR = Path(__file__).parent.absolute()
 DATA_DIR = PROGRAM_DIR / "data"
@@ -506,6 +507,12 @@ def create_maintenance_chart() -> Optional[Path]:
         # Создаем график
         x = list(range(len(days_sorted)))
         plt.figure(figsize=(9, 3))
+        # Настройка рамки
+        ax = plt.gca()
+        for spine in ax.spines.values():
+            spine.set_color('#2c3e50')
+            spine.set_linewidth(0.8)
+
 
         urgent_bars = plt.bar(x, urgent_vals, bottom=ok_vals, width=0.9, color='#C62828', label='СРОЧНО')        
         ok_bars = plt.bar(x, ok_vals, width=0.9, color='#2E7D32', label='Не требуется')
@@ -520,10 +527,10 @@ def create_maintenance_chart() -> Optional[Path]:
         tick_step = max(1, len(x) // 31)
         tick_positions = list(range(0, len(x), tick_step))
         tick_labels = [labels[i] for i in tick_positions]
-        plt.xticks(tick_positions, tick_labels, rotation=45, ha='right', fontsize=6)
-        plt.yticks(fontsize=6)
+        plt.xticks(tick_positions, tick_labels, rotation=45, ha='right', fontsize=6, color="#2c3e50")
+        plt.yticks(fontsize=6, color="#2c3e50")
         # plt.ylabel('Количество', fontsize=8)
-        plt.title('Статусы по дням (последние 62 дня)', fontsize=7)
+        plt.title('Статусы по дням (последние 62 дня)', fontsize=7, color="#2c3e50")
         plt.legend(loc='upper left',  fontsize=7)
         plt.tight_layout()
         plt.grid(axis='y', linestyle='--', linewidth=0.5, alpha=0.7)
@@ -615,16 +622,42 @@ def create_email_body(urgent_items: List[pd.DataFrame],
     
     html_parts: List[str] = []
     
-    # Верхняя сводка
+    # Верхняя сводка - компактный вариант с названиями над цифрами #2c3e50 #2c3e50
     html_parts.append(
-        (
-            "<div>"
-            f"<b>СРОЧНО:</b> <span style='color: red; font-weight: bold;'>{status_counts['СРОЧНО']}</span> ({unserviced_percentage:.1f}%)<br/>"
-            f"Не требуется: <span style='color: green; font-weight: bold;'> {status_counts['В норме']}</span><br/>"
-            f"Внимание: <span style='color: yellow; font-weight: bold;'>{status_counts['Внимание']}</span><br/>"
-            f"Всего: {total_records}<br/>"
-            "</div><br/>"
-        )
+        f"""
+        <div style="background-color: #2c3e50; border-radius: 8px; padding: 15px; 
+                    color: white; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+            <div style="display: flex; justify-content: space-around; text-align: center; flex-wrap: wrap;">
+                <div style="margin: 5px;">
+                    <div style="font-size: 12px; color: #ffd6d6; margin-bottom: 3px;">🚨 СРОЧНО</div>
+                    <div style="font-size: 20px; font-weight: bold; color: #ff6b6b;">{status_counts['СРОЧНО']}</div>
+                </div>
+                
+                <div style="margin: 5px;">
+                    <div style="font-size: 12px; color: #ffe082; margin-bottom: 3px;">⚠️ Внимание</div>
+                    <div style="font-size: 20px; font-weight: bold; color: #ffd54f;">{status_counts['Внимание']}</div>
+                </div>
+                
+                <div style="margin: 5px;">
+                    <div style="font-size: 12px; color: #a5d6a7; margin-bottom: 3px;">✅ В норме</div>
+                    <div style="font-size: 20px; font-weight: bold; color: #81c784;">{status_counts['В норме']}</div>
+                </div>
+                
+                <div style="margin: 5px;">
+                    <div style="font-size: 12px; color: #bbdefb; margin-bottom: 3px;">📊 Всего</div>
+                    <div style="font-size: 20px; font-weight: bold; color: #4fc3f7;">{total_records}</div>
+                </div>
+
+                <div style="margin-left: 20px;">
+                    <img src="cid:app_icon" alt="Иконка приложения" style="width: 52px; height: 52px; border-radius: 8px;">
+                </div>
+
+            </div>
+            
+
+        </div>
+        <br/>
+        """
     )
 
     # Создаем диаграмму
@@ -640,10 +673,10 @@ def create_email_body(urgent_items: List[pd.DataFrame],
             )
         )
 
-    # Срочные элементы
+    # Срочные элементы #2c3e50
     if urgent_items:
         total_urgent = sum(len(df) for df in urgent_items)
-        html_parts.append(f"<div><b>🚨 СРОЧНОЕ ОБСЛУЖИВАНИЕ (записей: {total_urgent}):</b></div>")
+        html_parts.append(f"<div><b style='color:#2c3e50;'>🚨 СРОЧНОЕ ОБСЛУЖИВАНИЕ (записей: {total_urgent}):</b></div>")
         html_parts.append("<hr/>")
         for urgent_df in urgent_items:
             for _, item in urgent_df.iterrows():
@@ -653,25 +686,54 @@ def create_email_body(urgent_items: List[pd.DataFrame],
     # Элементы требующие внимания
     if warning_items:
         total_warning = sum(len(df) for df in warning_items)
-        html_parts.append(f"<div><b>⚠️ ВНИМАНИЕ! Приближается срок обслуживания. (записей: {total_warning}):</b></div>")
+        html_parts.append(f"<div><b style='color:#2c3e50;'>⚠️ ВНИМАНИЕ! Приближается срок обслуживания. (записей: {total_warning}):</b></div>")
         html_parts.append("<hr/>")
         for warning_df in warning_items:
             for _, item in warning_df.iterrows():
                 html_parts.append("<div>" + format_item_info(item, item['Тип']).replace('\n', '<br/>') + "</div>")
                 html_parts.append("<hr/>")
 
-    # Подвал письма
+    # нижняя часть письма
     html_parts.append(
-        (
-            "<br/><div>"
-            f"Сообщение сформировано: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}<br/>"
-            f"Таблица обслуживания и скрипт: '{PROGRAM_DIR}'<br/>"
-            "Скрипт вызывается по расписанию в Windows Task Scheduler (правило 'maintenance_alert.py')<br/>"
-            f"Список получателей: {', '.join(RECIPIENTS)}<br/>"
-            f"🔧 v{VERSION} от {RELEASE_DATE}"
-            "</div>"
-        )
+        f"""
+        <br/>
+        <div style="background-color: #f1f3f4; border-left: 4px solid #18bc9c; 
+                    padding: 12px; margin-top: 20px; font-size: 11px; color: #333;">
+            <div style="margin-bottom: 8px;">
+
+                <span style="font-weight: bold;color:#2c3e50;">🔧 Скрипт рассылки уведомлений об обслуживании оборудования АСУТП</span> 
+               
+
+                <span style="float: right; background-color: #18bc9c; color: white; 
+                            padding: 2px 8px; border-radius: 10px; font-size: 10px;">
+                    v{VERSION} от {RELEASE_DATE}<br/> semonoff@gmail.com
+                </span>
+                <span style="float: right; margin-right: 8px "> 
+                    <img src="cid:app_icon" alt="Иконка приложения" style="width: 32px; height: 32px; border-radius: 8px;">
+                </span>
+
+
+
+                
+            </div>
+            
+            <div style="line-height: 1.4;">
+                <span style="color: #555;">📂 Файлы на сервере ASUTP-FILES-SRV01:</span><br/>
+                <span style="margin-left: 15px;">📊 Таблица:</span> \"<code>Y:\\Обслуживание оборудования АСУТП\\{EXCEL_FILE.name}</code><br/>
+                <span style="margin-left: 15px;">🐍 Скрипт:</span> <code>maintenance_alert.py</code> ({PROGRAM_DIR})<br/>
+                <span style="margin-left: 15px;">⏰ Запуск:</span> Ежедневно из Task Scheduler, правило: <code>maintenance_alert.py</code><br/>
+                <span style="margin-left: 15px;">📧 Получатели ({len(RECIPIENTS)}):</span> {', '.join(RECIPIENTS)}<br/>
+                <div style="text-align: right; margin-top: 5px; color: #666; font-size: 10px;">
+                    Сформировано: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}
+                </div>
+
+
+            </div>
+        </div>
+        """
     )
+
+
 
     html_body = "".join(html_parts)
     return html_body, chart_path
@@ -710,6 +772,15 @@ def send_email(html_body: str, recipients: List[str], chart_path: Optional[Path]
                 msg.attach(img)
         else:
             alternative.attach(MIMEText(html_body, 'html', 'utf-8'))
+
+        # Добавляем иконку приложения
+        icon_path = DATA_DIR / "manky.png"
+        if icon_path.exists():
+            with open(icon_path, 'rb') as icon_file:
+                icon = MIMEImage(icon_file.read())
+                icon.add_header('Content-ID', '<app_icon>')
+                icon.add_header('Content-Disposition', 'inline', filename='manky.png')
+                msg.attach(icon)
         
         # Подключаемся к SMTP серверу и отправляем письмо
         server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
