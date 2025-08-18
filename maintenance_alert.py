@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 from typing import Dict, List, Tuple, Optional, Any
 
 # Версия программы
-VERSION = "1.1.2"
-RELEASE_DATE = "18.08.2025"
+VERSION = "1.1.3"
+RELEASE_DATE = "19.08.2025"
 PROGRAM_DIR = Path(__file__).parent.absolute()
 DATA_DIR = PROGRAM_DIR / "data"
 
@@ -463,15 +463,23 @@ def format_item_info(item: pd.Series, item_type: str) -> str:
     Returns:
         Отформатированная строка информации
     """
+    # Определяем эмодзи в зависимости от типа
+    if "ПК" in item_type:
+        emoji = "💻"
+    elif "Шкаф" in item_type:
+        emoji = "📦"
+    else:
+        emoji = "📋"  # эмодзи по умолчанию
+
     info = f"""
-<span style='color:#2c3e50;'> Тип: <strong> {item_type} </strong> </span>
-Объект: <strong style='color:#2c3e50;'>{item['Объект']}</strong>
-Наименование: <strong style='color:#2c3e50;'>{item['Наименование']}</strong>
-Обозначение: <strong style='color:#2c3e50;'>{item['Обозначение']}</strong>
-Место расположения: <strong style='color:#2c3e50;'>{item['Место расположения']}</strong>
-Интервал ТО (дней): <strong style='color:#2c3e50;'>{item['Интервал ТО (дней)']}</strong>
-Дата последнего ТО: <strong style='color:#2c3e50;'>{format_date(item['Дата последнего ТО'])}</strong>
-Дата следующего ТО: <strong style='color:#2c3e50;'>{format_date(item['Дата следующего ТО'])}</strong>
+<span style='color:#2c3e50;'> Тип: <strong>{emoji}  {item_type} </strong> </span><br/>
+Объект: <strong style='color:#2c3e50;'>{item['Объект']}</strong><br/>
+Наименование: <strong style='color:#2c3e50;'>{item['Наименование']}</strong><br/>
+Обозначение: <strong style='color:#2c3e50;'>{item['Обозначение']}</strong><br/>
+Место расположения: <strong style='color:#2c3e50;'>{item['Место расположения']}</strong><br/>
+Интервал ТО (дней): <strong style='color:#2c3e50;'>{item['Интервал ТО (дней)']}</strong><br/>
+Дата последнего ТО: <strong style='color:#2c3e50;'>{format_date(item['Дата последнего ТО'])}</strong><br/>
+Дата следующего ТО: <strong style='color:#2c3e50;'>{format_date(item['Дата следующего ТО'])}</strong><br/>
 Статус: <strong style='color:#2c3e50;'>{item['Статус']}</strong>
 """
     return info
@@ -519,15 +527,13 @@ def create_maintenance_chart() -> Optional[Path]:
             spine.set_linewidth(0.8)
 
         # Правильный порядок слоев: снизу вверх
-        # 1. Сначала рисуем "В норме" (самый нижний слой)
-        ok_bars = plt.bar(x, ok_vals, width=0.9, color='#18bc9c', label='В норме')
-        
-        # 2. Затем "Внимание" (посередине) - поверх "В норме"
-        warning_bars = plt.bar(x, warning_vals, bottom=ok_vals, width=0.9, color='#f39c12', label='Внимание')
-        
-        # 3. Наконец "СРОЧНО" (сверху) - поверх всех
+        # 1. "СРОЧНО" (сверху) - поверх всех
         bottom_stack = [ok_vals[i] + warning_vals[i] for i in range(len(x))]
         urgent_bars = plt.bar(x, urgent_vals, bottom=bottom_stack, width=0.9, color='#e74c3c', label='СРОЧНО')
+        # 2. "Внимание" (посередине) - поверх "В норме"
+        warning_bars = plt.bar(x, warning_vals, bottom=ok_vals, width=0.9, color='#f39c12', label='Внимание')
+        # 3. "В норме" (самый нижний слой)
+        ok_bars = plt.bar(x, ok_vals, width=0.9, color='#18bc9c', label='В норме')
 
         # Добавляем подписи значений
         _add_chart_labels(x, ok_vals, urgent_vals, warning_vals)
@@ -680,32 +686,38 @@ def create_email_body(urgent_items: List[pd.DataFrame],
                 "</div><br/>"
             )
         )
-
-    # Срочные элементы #2c3e50
+    bg_colors = [ "#F9FCFF", "#ffffff"]
+    # Срочные элементы с чередующимся фоном
     if urgent_items:
         total_urgent = sum(len(df) for df in urgent_items)
         html_parts.append(f"<div><strong style='color:#e74c3c;'>🚨 СРОЧНОЕ ОБСЛУЖИВАНИЕ (записей: {total_urgent}):</strong></div>")
         html_parts.append("<hr style='background-color: #e74c3c; height: 1px; border: none;' />")
+        color_index = 0
         for urgent_df in urgent_items:
             for _, item in urgent_df.iterrows():
-                html_parts.append("<div style='margin-left: 25px;'>" + format_item_info(item, item['Тип']).replace('\n', '<br/>') + "</div> <br/>")
-                # html_parts.append("<hr style='background-color: #2c3e50; height: 1px; border: none;' />")
+                bg_color = bg_colors[color_index % len(bg_colors)]
+                html_parts.append(f"<div style='background-color: {bg_color}; margin-left: 0px; padding: 10px; padding-left: 25px;'>" + format_item_info(item, item['Тип']) + "</div>")
+                color_index += 1
     
-    # Элементы требующие внимания
+    # Элементы требующие внимания с чередующимся фоном
     if warning_items:
         total_warning = sum(len(df) for df in warning_items)
         html_parts.append(f"<div><br/><strong style='color:#f39c12;'>⚠️ ВНИМАНИЕ! Приближается срок обслуживания. (записей: {total_warning}):</strong></div>")
         html_parts.append("<hr style='background-color: #f39c12; height: 1px; border: none;' />")
+        color_index = 0
         for warning_df in warning_items:
             for _, item in warning_df.iterrows():
-                html_parts.append("<div style='margin-left: 25px;'>" + format_item_info(item, item['Тип']).replace('\n', '<br/>') + "</div>")
-                # html_parts.append("<hr/>")
+                bg_color = bg_colors[color_index % len(bg_colors)]
+                html_parts.append(f"<div style='background-color: {bg_color}; margin-left: 0px; padding: 10px; padding-left: 25px;'>" + format_item_info(item, item['Тип']) + "</div>")
+                color_index += 1
+                # Добавил отступ между записями
+                html_parts.append("<br/>")
 
     # нижняя часть письма
     html_parts.append(
         f"""
         <br/>
-        <div style="background-color: #f1f3f4; border-left: 4px solid #18bc9c; 
+        <div style="background-color: #EFF2F6; border-left: 4px solid #18bc9c; 
                     padding: 12px; margin-top: 20px; font-size: 11px; color: #333;">
             <div style="margin-bottom: 8px;">
 
@@ -728,8 +740,6 @@ def create_email_body(urgent_items: List[pd.DataFrame],
                 <div style="text-align: right; margin-top: 5px; color: #2c3e50; font-size: 10px;">
                     Сформировано: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}
                 </div>
-
-
             </div>
         </div>
         """
