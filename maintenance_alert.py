@@ -464,15 +464,15 @@ def format_item_info(item: pd.Series, item_type: str) -> str:
         Отформатированная строка информации
     """
     info = f"""
-Тип: {item_type}
-Объект: {item['Объект']}
-Наименование: {item['Наименование']}
-Обозначение: {item['Обозначение']}
-Место расположения: {item['Место расположения']}
-Интервал ТО (дней): {item['Интервал ТО (дней)']}
-Дата последнего ТО: {format_date(item['Дата последнего ТО'])}
-Дата следующего ТО: {format_date(item['Дата следующего ТО'])}
-Статус: {item['Статус']}
+<span style='color:#2c3e50;'> Тип: <strong> {item_type} </strong> </span>
+Объект: <strong style='color:#2c3e50;'>{item['Объект']}</strong>
+Наименование: <strong style='color:#2c3e50;'>{item['Наименование']}</strong>
+Обозначение: <strong style='color:#2c3e50;'>{item['Обозначение']}</strong>
+Место расположения: <strong style='color:#2c3e50;'>{item['Место расположения']}</strong>
+Интервал ТО (дней): <strong style='color:#2c3e50;'>{item['Интервал ТО (дней)']}</strong>
+Дата последнего ТО: <strong style='color:#2c3e50;'>{format_date(item['Дата последнего ТО'])}</strong>
+Дата следующего ТО: <strong style='color:#2c3e50;'>{format_date(item['Дата следующего ТО'])}</strong>
+Статус: <strong style='color:#2c3e50;'>{item['Статус']}</strong>
 """
     return info
 
@@ -630,8 +630,8 @@ def create_email_body(urgent_items: List[pd.DataFrame],
     # Верхняя сводка - компактный вариант с названиями над цифрами #2c3e50 #2c3e50
     html_parts.append(
         f"""
-        <div style="background-color: #2c3e50; border-radius: 8px; padding: 15px; 
-                    color: white; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+        <div style="background-color: #2c3e50; border-radius: 8px; padding: 15px; border-left: 4px solid #18bc9c;
+                    color: white;">
             <div style="display: flex; justify-content: space-around; text-align: center; flex-wrap: wrap;">
                 <div style="margin: 5px; ">
                     <div style="font-size: 12px; color: #ffd6d6; margin-bottom: 3px;">🚨 СРОЧНО</div>
@@ -644,8 +644,8 @@ def create_email_body(urgent_items: List[pd.DataFrame],
                 </div>
                 
                 <div style="margin: 5px; margin-left: 20px;">
-                    <div style="font-size: 12px; color: #a5d6a7; margin-bottom: 3px;">✅ В норме</div>
-                    <div style="font-size: 20px; font-weight: bold; color: #81c784;">{status_counts['В норме']}</div>
+                    <div style="font-size: 12px; color: #18bc9c; margin-bottom: 3px;">✅ В норме</div>
+                    <div style="font-size: 20px; font-weight: bold; color: #18bc9c;">{status_counts['В норме']}</div>
                 </div>
                 
                 <div style="margin: 5px; margin-left: 20px;">
@@ -681,22 +681,22 @@ def create_email_body(urgent_items: List[pd.DataFrame],
     # Срочные элементы #2c3e50
     if urgent_items:
         total_urgent = sum(len(df) for df in urgent_items)
-        html_parts.append(f"<div><b style='color:#2c3e50;'>🚨 СРОЧНОЕ ОБСЛУЖИВАНИЕ (записей: {total_urgent}):</b></div>")
-        html_parts.append("<hr/>")
+        html_parts.append(f"<div><strong style='color:#e74c3c;'>🚨 СРОЧНОЕ ОБСЛУЖИВАНИЕ (записей: {total_urgent}):</strong></div>")
+        html_parts.append("<hr style='background-color: #e74c3c; height: 1px; border: none;' />")
         for urgent_df in urgent_items:
             for _, item in urgent_df.iterrows():
-                html_parts.append("<div>" + format_item_info(item, item['Тип']).replace('\n', '<br/>') + "</div>")
-                html_parts.append("<hr/>")
+                html_parts.append("<div style='margin-left: 25px;'>" + format_item_info(item, item['Тип']).replace('\n', '<br/>') + "</div> <br/>")
+                # html_parts.append("<hr style='background-color: #2c3e50; height: 1px; border: none;' />")
     
     # Элементы требующие внимания
     if warning_items:
         total_warning = sum(len(df) for df in warning_items)
-        html_parts.append(f"<div><b style='color:#2c3e50;'>⚠️ ВНИМАНИЕ! Приближается срок обслуживания. (записей: {total_warning}):</b></div>")
-        html_parts.append("<hr/>")
+        html_parts.append(f"<div><br/><strong style='color:#f39c12;'>⚠️ ВНИМАНИЕ! Приближается срок обслуживания. (записей: {total_warning}):</strong></div>")
+        html_parts.append("<hr style='background-color: #f39c12; height: 1px; border: none;' />")
         for warning_df in warning_items:
             for _, item in warning_df.iterrows():
-                html_parts.append("<div>" + format_item_info(item, item['Тип']).replace('\n', '<br/>') + "</div>")
-                html_parts.append("<hr/>")
+                html_parts.append("<div style='margin-left: 25px;'>" + format_item_info(item, item['Тип']).replace('\n', '<br/>') + "</div>")
+                # html_parts.append("<hr/>")
 
     # нижняя часть письма
     html_parts.append(
@@ -707,8 +707,6 @@ def create_email_body(urgent_items: List[pd.DataFrame],
             <div style="margin-bottom: 8px;">
 
                 <span style="font-weight: bold;color:#2c3e50;">🔧 Скрипт рассылки уведомлений об обслуживании оборудования АСУТП</span> 
-               
-
                 <span style="float: right; background-color: #18bc9c; color: white; 
                             padding: 2px 8px; border-radius: 10px; font-size: 10px;">
                     v{VERSION} от {RELEASE_DATE}<br/> semonoff@gmail.com
@@ -716,19 +714,15 @@ def create_email_body(urgent_items: List[pd.DataFrame],
                 <span style="float: right; margin-right: 8px "> 
                     <img src="cid:app_icon" alt="Иконка приложения" style="width: 32px; height: 32px; border-radius: 8px;">
                 </span>
-
-
-
-                
             </div>
             
             <div style="line-height: 1.4;">
-                <span style="color: #555;">📂 Файлы на сервере ASUTP-FILES-SRV01:</span><br/>
+                <span style="color: #2c3e50;">📂 Файлы на сервере ASUTP-FILES-SRV01:</span><br/>
                 <span style="margin-left: 15px;">📊 Таблица:</span> \"<code>Y:\\Обслуживание оборудования АСУТП\\{EXCEL_FILE.name}</code><br/>
                 <span style="margin-left: 15px;">🐍 Скрипт:</span> <code>maintenance_alert.py</code> ({PROGRAM_DIR})<br/>
                 <span style="margin-left: 15px;">⏰ Запуск:</span> Ежедневно из Task Scheduler, правило: <code>maintenance_alert.py</code><br/>
                 <span style="margin-left: 15px;">📧 Получатели ({len(RECIPIENTS)}):</span> {', '.join(RECIPIENTS)}<br/>
-                <div style="text-align: right; margin-top: 5px; color: #666; font-size: 10px;">
+                <div style="text-align: right; margin-top: 5px; color: #2c3e50; font-size: 10px;">
                     Сформировано: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}
                 </div>
 
