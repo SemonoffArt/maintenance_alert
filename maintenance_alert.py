@@ -518,11 +518,16 @@ def create_maintenance_chart() -> Optional[Path]:
             spine.set_color('#2c3e50')
             spine.set_linewidth(0.8)
 
-
-        urgent_bars = plt.bar(x, urgent_vals, bottom=ok_vals, width=0.9, color='#e74c3c', label='СРОЧНО')        
+        # Правильный порядок слоев: снизу вверх
+        # 1. Сначала рисуем "В норме" (самый нижний слой)
         ok_bars = plt.bar(x, ok_vals, width=0.9, color='#18bc9c', label='В норме')
-        bottom_stack = [ok_vals[i] + urgent_vals[i] for i in range(len(x))]
-        warning_bars = plt.bar(x, warning_vals, bottom=bottom_stack, width=0.9, color='#f39c12', label='Внимание')
+        
+        # 2. Затем "Внимание" (посередине) - поверх "В норме"
+        warning_bars = plt.bar(x, warning_vals, bottom=ok_vals, width=0.9, color='#f39c12', label='Внимание')
+        
+        # 3. Наконец "СРОЧНО" (сверху) - поверх всех
+        bottom_stack = [ok_vals[i] + warning_vals[i] for i in range(len(x))]
+        urgent_bars = plt.bar(x, urgent_vals, bottom=bottom_stack, width=0.9, color='#e74c3c', label='СРОЧНО')
 
         # Добавляем подписи значений
         _add_chart_labels(x, ok_vals, urgent_vals, warning_vals)
@@ -534,9 +539,8 @@ def create_maintenance_chart() -> Optional[Path]:
         tick_labels = [labels[i] for i in tick_positions]
         plt.xticks(tick_positions, tick_labels, rotation=45, ha='right', fontsize=6, color="#2c3e50")
         plt.yticks(fontsize=6, color="#2c3e50")
-        # plt.ylabel('Количество', fontsize=8)
         plt.title('Статусы по дням (последние 62 дня)', fontsize=7, color="#2c3e50")
-        plt.legend(loc='upper left',  fontsize=7) # labelcolor="#2c3e50"
+        plt.legend(loc='upper left', fontsize=7)
         plt.tight_layout()
         plt.grid(axis='y', linestyle='--', linewidth=0.5, alpha=0.7)
 
@@ -571,7 +575,7 @@ def _add_chart_labels(x: List[int],
         if total_val <= 0:
             continue
             
-        # Подписи для "В норме"
+        # Подписи для "В норме" (самый нижний слой)
         if ok_vals[i] > 0:
             pct = ok_vals[i] / total_val * 100
             if pct >= 5:
@@ -582,28 +586,27 @@ def _add_chart_labels(x: List[int],
                     ha='center', va='center', rotation=90, fontsize=6, color='white'
                 )
         
-        # Подписи для "СРОЧНО"
-        if urgent_vals[i] > 0:
-            pct = urgent_vals[i] / total_val * 100
-            if pct >= 5:
-                y_pos = ok_vals[i] + urgent_vals[i] / 2
-                plt.text(
-                    xpos, y_pos,
-                    f"{urgent_vals[i]}",
-                    ha='center', va='center', rotation=90, fontsize=6, color='white'
-                )
-        
-        # Подписи для "Внимание"
+        # Подписи для "Внимание" (посередине)
         if warning_vals[i] > 0:
             pct = warning_vals[i] / total_val * 100
             if pct >= 5:
-                y_pos = ok_vals[i] + urgent_vals[i] + warning_vals[i] / 2
+                y_pos = ok_vals[i] + warning_vals[i] / 2
                 plt.text(
                     xpos, y_pos,
                     f"{warning_vals[i]}",
                     ha='center', va='center', rotation=90, fontsize=6, color='black'
                 )
-
+        
+        # Подписи для "СРОЧНО" (сверху)
+        if urgent_vals[i] > 0:
+            pct = urgent_vals[i] / total_val * 100
+            if pct >= 5:
+                y_pos = ok_vals[i] + warning_vals[i] + urgent_vals[i] / 2
+                plt.text(
+                    xpos, y_pos,
+                    f"{urgent_vals[i]}",
+                    ha='center', va='center', rotation=90, fontsize=6, color='white'
+                )
 
 def create_email_body(urgent_items: List[pd.DataFrame], 
                      warning_items: List[pd.DataFrame], 
