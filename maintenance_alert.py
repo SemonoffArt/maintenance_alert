@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from typing import Dict, List, Tuple, Optional, Any
 
 # Версия программы
-VERSION = "1.1.3"
+VERSION = "1.1.4"
 RELEASE_DATE = "19.08.2025"
 PROGRAM_DIR = Path(__file__).parent.absolute()
 DATA_DIR = PROGRAM_DIR / "data"
@@ -733,8 +733,8 @@ def create_email_body(urgent_items: List[pd.DataFrame],
             
             <div style="line-height: 1.4;">
                 <span style="color: #2c3e50;">📂 Файлы на сервере ASUTP-FILES-SRV01:</span><br/>
-                <span style="margin-left: 15px;">📊 Таблица:</span> \"<code>Y:\\Обслуживание оборудования АСУТП\\{EXCEL_FILE.name}</code><br/>
-                <span style="margin-left: 15px;">🐍 Скрипт:</span> <code>maintenance_alert.py</code> ({PROGRAM_DIR})<br/>
+                <span style="margin-left: 15px;">📊 Таблица:</span> <code>{EXCEL_FILE}</code><br/>
+                <span style="margin-left: 15px;">🐍 Скрипт:</span> <code>{PROGRAM_DIR}maintenance_alert.py</code> <br/>
                 <span style="margin-left: 15px;">⏰ Запуск:</span> Ежедневно из Task Scheduler, правило: <code>maintenance_alert.py</code><br/>
                 <span style="margin-left: 15px;">📧 Получатели ({len(RECIPIENTS)}):</span> {', '.join(RECIPIENTS)}<br/>
                 <div style="text-align: right; margin-top: 5px; color: #2c3e50; font-size: 10px;">
