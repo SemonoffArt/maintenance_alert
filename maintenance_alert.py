@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from typing import Dict, List, Tuple, Optional, Any
 
 # Версия программы
-VERSION = "1.1.4"
+VERSION = "1.1.5"
 RELEASE_DATE = "19.08.2025"
 PROGRAM_DIR = Path(__file__).parent.absolute()
 DATA_DIR = PROGRAM_DIR / "data"
@@ -734,8 +734,9 @@ def create_email_body(urgent_items: List[pd.DataFrame],
             <div style="line-height: 1.4;">
                 <span style="color: #2c3e50;">📂 Файлы на сервере ASUTP-FILES-SRV01:</span><br/>
                 <span style="margin-left: 15px;">📊 Таблица:</span> <code>{EXCEL_FILE}</code><br/>
-                <span style="margin-left: 15px;">🐍 Скрипт:</span> <code>{PROGRAM_DIR}maintenance_alert.py</code> <br/>
+                <span style="margin-left: 15px;">🐍 Скрипт:</span> <code>{Path(__file__).resolve()}</code> <br/>
                 <span style="margin-left: 15px;">⏰ Запуск:</span> Ежедневно из Task Scheduler, правило: <code>maintenance_alert.py</code><br/>
+                <span style="margin-left: 15px;">🌐 Исходный код:</span> <a href="https://github.com/SemonoffArt/maintenance_alert" style="color: #18bc9c; text-decoration: none;">GitHub репозиторий</a><br/>
                 <span style="margin-left: 15px;">📧 Получатели ({len(RECIPIENTS)}):</span> {', '.join(RECIPIENTS)}<br/>
                 <div style="text-align: right; margin-top: 5px; color: #2c3e50; font-size: 10px;">
                     Сформировано: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}
