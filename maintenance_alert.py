@@ -36,7 +36,7 @@ RECIPIENTS = [
 # Названия колонок Excel
 COLUMN_NAMES = [
     "№", "Объект", "Наименование", "Обозначение", "Место расположения",
-    "Выполнить", "Интервал ТО (дней)", "Напоминание (за дней)", "Дата последнего ТО",
+    "Работы", "Интервал ТО (дней)", "Напоминание (за дней)", "Дата последнего ТО",
     "Дата следующего ТО", "Статус"
 ]
 
@@ -480,23 +480,23 @@ def format_item_info(item: pd.Series, item_type: str) -> str:
 
     # Проверяем, нужно ли включать поле "Выполнить"
     raboty_row = ""
-    if not pd.isna(item['Выполнить']):
-        raobty_value = format_field_value(item['Выполнить'])
-        raboty_row = f"<tr><td style='padding: 1px 10px 1px 0; width: 170px; color:#2c3e50; vertical-align: top;'>Работы:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{raobty_value}</td></tr>"
+    if not pd.isna(item['Работы']):
+        raobty_value = format_field_value(item['Работы'])
+        raboty_row = f"<tr><td style='padding: 1px 10px 1px 0; width: 200px; color:#2c3e50; vertical-align: top;'>Работы:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{raobty_value}</td></tr>"
 
     info = f"""
 <div style='margin-bottom: 10px;'>
     <table style='width: 100%; border-collapse: collapse; font-size: 14px;'>
-        <tr><td style='padding: 1px 10px 1px 0; width: 170px; color:#2c3e50; vertical-align: top;'>Тип:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{emoji}  {item_type}</td></tr>
-        <tr><td style='padding: 1px 10px 1px 0; width: 170px; color:#2c3e50; vertical-align: top;'>Объект:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{item['Объект']}</td></tr>
-        <tr><td style='padding: 1px 10px 1px 0; width: 170px; color:#2c3e50; vertical-align: top;'>Наименование:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{item['Наименование']}</td></tr>
-        <tr><td style='padding: 1px 10px 1px 0; width: 170px; color:#2c3e50; vertical-align: top;'>Обозначение:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{item['Обозначение']}</td></tr>
-        <tr><td style='padding: 1px 10px 1px 0; width: 170px; color:#2c3e50; vertical-align: top;'>Место расположения:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{item['Место расположения']}</td></tr>
+        <tr><td style='padding: 1px 10px 1px 0; width: 200px; color:#2c3e50; vertical-align: top;'>Тип:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{emoji}  {item_type}</td></tr>
+        <tr><td style='padding: 1px 10px 1px 0; width: 200px; color:#2c3e50; vertical-align: top;'>Объект:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{item['Объект']}</td></tr>
+        <tr><td style='padding: 1px 10px 1px 0; width: 200px; color:#2c3e50; vertical-align: top;'>Наименование:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{item['Наименование']}</td></tr>
+        <tr><td style='padding: 1px 10px 1px 0; width: 200px; color:#2c3e50; vertical-align: top;'>Обозначение:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{item['Обозначение']}</td></tr>
+        <tr><td style='padding: 1px 10px 1px 0; width: 200px; color:#2c3e50; vertical-align: top;'>Место расположения:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{item['Место расположения']}</td></tr>
         {raboty_row}
-        <tr><td style='padding: 1px 10px 1px 0; width: 170px; color:#2c3e50; vertical-align: top;'>Интервал ТО (дней):</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{item['Интервал ТО (дней)']}</td></tr>
-        <tr><td style='padding: 1px 10px 1px 0; width: 170px; color:#2c3e50; vertical-align: top;'>Дата последнего ТО:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{format_date(item['Дата последнего ТО'])}</td></tr>
-        <tr><td style='padding: 1px 10px 1px 0; width: 170px; color:#2c3e50; vertical-align: top;'>Дата следующего ТО:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{format_date(item['Дата следующего ТО'])}</td></tr>
-        <tr><td style='padding: 1px 10px 1px 0; width: 170px; color:#2c3e50; vertical-align: top;'>Статус:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{item['Статус']}</td></tr>
+        <tr><td style='padding: 1px 10px 1px 0; width: 200px; color:#2c3e50; vertical-align: top;'>Интервал ТО (дней):</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{item['Интервал ТО (дней)']}</td></tr>
+        <tr><td style='padding: 1px 10px 1px 0; width: 200px; color:#2c3e50; vertical-align: top;'>Дата последнего ТО:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{format_date(item['Дата последнего ТО'])}</td></tr>
+        <tr><td style='padding: 1px 10px 1px 0; width: 200px; color:#2c3e50; vertical-align: top;'>Дата следующего ТО:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{format_date(item['Дата следующего ТО'])}</td></tr>
+        <tr><td style='padding: 1px 10px 1px 0; width: 200px; color:#2c3e50; vertical-align: top;'>Статус:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{item['Статус']}</td></tr>
     </table>
 </div>
 """
