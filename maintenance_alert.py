@@ -36,18 +36,18 @@ RECIPIENTS = [
 # Названия колонок Excel
 COLUMN_NAMES = [
     "№", "Объект", "Наименование", "Обозначение", "Место расположения",
-    "Интервал ТО (дней)", "Напоминание (за дней)", "Дата последнего ТО",
+    "Выполнить", "Интервал ТО (дней)", "Напоминание (за дней)", "Дата последнего ТО",
     "Дата следующего ТО", "Статус"
 ]
 
 # Конфигурация листов Excel
 SHEETS_CONFIG = {
-    "ПК АСУ ТП": {"range": "A4:J300"},
-    "Шкафы АСУ ТП": {"range": "A4:J300"}
+    "ПК АСУ ТП": {"range": "A4:K300"},
+    "Шкафы АСУ ТП": {"range": "A4:K300"}
 }
 
 # Статусы обслуживания
-MAINTENANCE_STATUSES = ["СРОЧНО", "Внимание", "В норме"]
+MAINTENANCE_STATUSES = ["ОБСЛУЖИТЬ", "Внимание", "Не требуется"]
 
 
 def get_excel_file_path() -> Path:
@@ -162,14 +162,14 @@ def update_maintenance_statistics(alarm_items: List[pd.DataFrame],
     print(f"🔍 Проверяем существование записи за {today.strftime('%d.%m.%Y')}...")
     
     # Подсчитываем обслуженное оборудование (статус "В норме")
-    ok_count = status_counts.get('В норме', 0)
+    ok_count = status_counts.get('Не требуется', 0)
     
     # Создаем запись о текущем состоянии
     maintenance_record = {
         "date": today_str,
         "total_equipment": total_records,
         "ok": ok_count,
-        "urgent": status_counts.get('СРОЧНО', 0),
+        "urgent": status_counts.get('ОБСЛУЖИТЬ', 0),
         "warning": status_counts.get('Внимание', 0),
         "timestamp": now.isoformat()
     }
@@ -412,7 +412,7 @@ def read_excel_data() -> Tuple[List[pd.DataFrame], List[pd.DataFrame], int, Dict
                 status_counts[status] += len(df[df['Статус'] == status])
             
             # Проверяем статусы
-            alarm = df[df['Статус'] == 'СРОЧНО']
+            alarm = df[df['Статус'] == 'ОБСЛУЖИТЬ']
             warning = df[df['Статус'] == 'Внимание']
             
             print(f"  Найдено СРОЧНО: {len(alarm)}, Внимание: {len(warning)}")
@@ -452,6 +452,13 @@ def format_date(date_value) -> str:
         return "Не указана"
 
 
+def format_field_value(value) -> str:
+    """Форматирует значение поля, обрабатывая NaN значения."""
+    if pd.isna(value):
+        return ""
+    return str(value)
+
+
 def format_item_info(item: pd.Series, item_type: str) -> str:
     """
     Форматирует информацию об элементе.
@@ -477,6 +484,7 @@ def format_item_info(item: pd.Series, item_type: str) -> str:
 Наименование: <strong style='color:#2c3e50;'>{item['Наименование']}</strong><br/>
 Обозначение: <strong style='color:#2c3e50;'>{item['Обозначение']}</strong><br/>
 Место расположения: <strong style='color:#2c3e50;'>{item['Место расположения']}</strong><br/>
+Выполнить: <strong style='color:#2c3e50;'>{format_field_value(item['Выполнить'])}</strong><br/>
 Интервал ТО (дней): <strong style='color:#2c3e50;'>{item['Интервал ТО (дней)']}</strong><br/>
 Дата последнего ТО: <strong style='color:#2c3e50;'>{format_date(item['Дата последнего ТО'])}</strong><br/>
 Дата следующего ТО: <strong style='color:#2c3e50;'>{format_date(item['Дата следующего ТО'])}</strong><br/>
@@ -527,13 +535,13 @@ def create_maintenance_chart() -> Optional[Path]:
             spine.set_linewidth(0.8)
 
         # Правильный порядок слоев: снизу вверх
-        # 1. "СРОЧНО" (сверху) - поверх всех
+        # 1. "ОБСЛУЖИТЬ" (сверху) - поверх всех
         bottom_stack = [ok_vals[i] + warning_vals[i] for i in range(len(x))]
-        urgent_bars = plt.bar(x, urgent_vals, bottom=bottom_stack, width=0.9, color='#e74c3c', label='СРОЧНО')
+        urgent_bars = plt.bar(x, urgent_vals, bottom=bottom_stack, width=0.9, color='#e74c3c', label='ОБСЛУЖИТЬ')
         # 2. "Внимание" (посередине) - поверх "В норме"
         warning_bars = plt.bar(x, warning_vals, bottom=ok_vals, width=0.9, color='#f39c12', label='Внимание')
-        # 3. "В норме" (самый нижний слой)
-        ok_bars = plt.bar(x, ok_vals, width=0.9, color='#18bc9c', label='В норме')
+        # 3. "Не требуется" (самый нижний слой)
+        ok_bars = plt.bar(x, ok_vals, width=0.9, color='#18bc9c', label='Не требуется')
 
         # Добавляем подписи значений
         _add_chart_labels(x, ok_vals, urgent_vals, warning_vals)
@@ -631,7 +639,7 @@ def create_email_body(urgent_items: List[pd.DataFrame],
         Кортеж: (HTML-тело письма, путь к диаграмме)
     """
     # Вычисляем процент необслуженного оборудования
-    unserviced_count = status_counts['СРОЧНО'] #+ status_counts['Внимание']
+    unserviced_count = status_counts['ОБСЛУЖИТЬ'] #+ status_counts['Внимание']
     unserviced_percentage = (unserviced_count / total_records * 100) if total_records > 0 else 0
     
     html_parts: List[str] = []
@@ -643,8 +651,8 @@ def create_email_body(urgent_items: List[pd.DataFrame],
                     color: white;">
             <div style="display: flex; justify-content: space-around; text-align: center; flex-wrap: wrap;">
                 <div style="margin: 5px; ">
-                    <div style="font-size: 12px; color: #ffd6d6; margin-bottom: 3px;">🚨 СРОЧНО</div>
-                    <div style="font-size: 20px; font-weight: bold; color: #ff6b6b;">{status_counts['СРОЧНО']} ({unserviced_percentage:.1f}%) </div>
+                    <div style="font-size: 12px; color: #ffd6d6; margin-bottom: 3px;">🚨 ОБСЛУЖИТЬ</div>
+                    <div style="font-size: 20px; font-weight: bold; color: #ff6b6b;">{status_counts['ОБСЛУЖИТЬ']} ({unserviced_percentage:.1f}%) </div>
                 </div>
                 
                 <div style="margin: 5px; margin-left: 20px;">
@@ -653,8 +661,8 @@ def create_email_body(urgent_items: List[pd.DataFrame],
                 </div>
                 
                 <div style="margin: 5px; margin-left: 20px;">
-                    <div style="font-size: 12px; color: #18bc9c; margin-bottom: 3px;">✅ В норме</div>
-                    <div style="font-size: 20px; font-weight: bold; color: #18bc9c;">{status_counts['В норме']}</div>
+                    <div style="font-size: 12px; color: #18bc9c; margin-bottom: 3px;">✅ Не требуется</div>
+                    <div style="font-size: 20px; font-weight: bold; color: #18bc9c;">{status_counts['Не требуется']}</div>
                 </div>
                 
                 <div style="margin: 5px; margin-left: 20px;">
@@ -690,7 +698,7 @@ def create_email_body(urgent_items: List[pd.DataFrame],
     # Срочные элементы с чередующимся фоном
     if urgent_items:
         total_urgent = sum(len(df) for df in urgent_items)
-        html_parts.append(f"<div><strong style='color:#e74c3c;'>🚨 СРОЧНОЕ ОБСЛУЖИВАНИЕ (записей: {total_urgent}):</strong></div>")
+        html_parts.append(f"<div><strong style='color:#e74c3c;'>🚨 ОБСЛУЖИТЬ (записей: {total_urgent}):</strong></div>")
         html_parts.append("<hr style='background-color: #e74c3c; height: 1px; border: none;' />")
         color_index = 0
         for urgent_df in urgent_items:
@@ -735,9 +743,9 @@ def create_email_body(urgent_items: List[pd.DataFrame],
                 <span style="color: #2c3e50;">📂 Файлы на сервере ASUTP-FILES-SRV01:</span><br/>
                 <span style="margin-left: 15px;">📊 Таблица:</span> <code>{EXCEL_FILE}</code><br/>
                 <span style="margin-left: 15px;">🐍 Скрипт:</span> <code>{Path(__file__).resolve()}</code> <br/>
-                <span style="margin-left: 15px;">⏰ Запуск:</span> Ежедневно из Task Scheduler, правило: <code>maintenance_alert.py</code><br/>
-                <span style="margin-left: 15px;">🌐 Исходный код:</span> <a href="https://github.com/SemonoffArt/maintenance_alert" style="color: #18bc9c; text-decoration: none;">GitHub репозиторий</a><br/>
-                <span style="margin-left: 15px;">📧 Получатели ({len(RECIPIENTS)}):</span> {', '.join(RECIPIENTS)}<br/>
+                <span style="">⏰ Запуск:</span> Ежедневно из Task Scheduler, правило: <code>maintenance_alert.py</code><br/>
+                <span style="">🌐 Исходный код:</span> <a href="https://github.com/SemonoffArt/maintenance_alert" style="color: #18bc9c; text-decoration: none;">GitHub репозиторий</a><br/>
+                <span style="">📧 Получатели ({len(RECIPIENTS)}):</span> {', '.join(RECIPIENTS)}<br/>
                 <div style="text-align: right; margin-top: 5px; color: #2c3e50; font-size: 10px;">
                     Сформировано: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}
                 </div>
