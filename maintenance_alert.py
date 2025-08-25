@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 from typing import Dict, List, Tuple, Optional, Any
 
 # Версия программы
-VERSION = "1.1.5"
-RELEASE_DATE = "19.08.2025"
+VERSION = "1.2.0"
+RELEASE_DATE = "25.08.2025"
 PROGRAM_DIR = Path(__file__).parent.absolute()
 DATA_DIR = PROGRAM_DIR / "data"
 
@@ -476,19 +476,29 @@ def format_item_info(item: pd.Series, item_type: str) -> str:
     elif "Шкаф" in item_type:
         emoji = "📦"
     else:
-        emoji = "📋"  # эмодзи по умолчанию
+        emoji = "⚙️"  # эмодзи по умолчанию
+
+    # Проверяем, нужно ли включать поле "Выполнить"
+    raboty_row = ""
+    if not pd.isna(item['Выполнить']):
+        raobty_value = format_field_value(item['Выполнить'])
+        raboty_row = f"<tr><td style='padding: 1px 10px 1px 0; width: 170px; color:#2c3e50; vertical-align: top;'>Работы:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{raobty_value}</td></tr>"
 
     info = f"""
-<span style='color:#2c3e50;'> Тип: <strong>{emoji}  {item_type} </strong> </span><br/>
-Объект: <strong style='color:#2c3e50;'>{item['Объект']}</strong><br/>
-Наименование: <strong style='color:#2c3e50;'>{item['Наименование']}</strong><br/>
-Обозначение: <strong style='color:#2c3e50;'>{item['Обозначение']}</strong><br/>
-Место расположения: <strong style='color:#2c3e50;'>{item['Место расположения']}</strong><br/>
-Выполнить: <strong style='color:#2c3e50;'>{format_field_value(item['Выполнить'])}</strong><br/>
-Интервал ТО (дней): <strong style='color:#2c3e50;'>{item['Интервал ТО (дней)']}</strong><br/>
-Дата последнего ТО: <strong style='color:#2c3e50;'>{format_date(item['Дата последнего ТО'])}</strong><br/>
-Дата следующего ТО: <strong style='color:#2c3e50;'>{format_date(item['Дата следующего ТО'])}</strong><br/>
-Статус: <strong style='color:#2c3e50;'>{item['Статус']}</strong>
+<div style='margin-bottom: 10px;'>
+    <table style='width: 100%; border-collapse: collapse; font-size: 14px;'>
+        <tr><td style='padding: 1px 10px 1px 0; width: 170px; color:#2c3e50; vertical-align: top;'>Тип:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{emoji}  {item_type}</td></tr>
+        <tr><td style='padding: 1px 10px 1px 0; width: 170px; color:#2c3e50; vertical-align: top;'>Объект:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{item['Объект']}</td></tr>
+        <tr><td style='padding: 1px 10px 1px 0; width: 170px; color:#2c3e50; vertical-align: top;'>Наименование:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{item['Наименование']}</td></tr>
+        <tr><td style='padding: 1px 10px 1px 0; width: 170px; color:#2c3e50; vertical-align: top;'>Обозначение:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{item['Обозначение']}</td></tr>
+        <tr><td style='padding: 1px 10px 1px 0; width: 170px; color:#2c3e50; vertical-align: top;'>Место расположения:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{item['Место расположения']}</td></tr>
+        {raboty_row}
+        <tr><td style='padding: 1px 10px 1px 0; width: 170px; color:#2c3e50; vertical-align: top;'>Интервал ТО (дней):</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{item['Интервал ТО (дней)']}</td></tr>
+        <tr><td style='padding: 1px 10px 1px 0; width: 170px; color:#2c3e50; vertical-align: top;'>Дата последнего ТО:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{format_date(item['Дата последнего ТО'])}</td></tr>
+        <tr><td style='padding: 1px 10px 1px 0; width: 170px; color:#2c3e50; vertical-align: top;'>Дата следующего ТО:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{format_date(item['Дата следующего ТО'])}</td></tr>
+        <tr><td style='padding: 1px 10px 1px 0; width: 170px; color:#2c3e50; vertical-align: top;'>Статус:</td><td style='padding: 1px 0; color:#2c3e50; font-weight: bold;'>{item['Статус']}</td></tr>
+    </table>
+</div>
 """
     return info
 
