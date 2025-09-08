@@ -377,6 +377,49 @@ def get_maintenance_statistics() -> Dict[str, int]:
     return merged
 
 
+def _verify_file_write(file_path: Path, original_mtime: float = None) -> bool:
+    """
+    Проверяет, что файл был успешно сохранен и обновлен.
+    
+    Args:
+        file_path: Путь к файлу для проверки
+        original_mtime: Оригинальное время модификации файла
+    
+    Returns:
+        True если файл корректно сохранен и обновлен, иначе False
+    """
+    try:
+        # Проверяем существование файла
+        if not file_path.exists():
+            return False
+        
+        # Проверяем, что файл не пустой
+        if file_path.stat().st_size == 0:
+            return False
+        
+        # Проверяем возможность чтения файла
+        with open(file_path, 'rb') as f:
+            header = f.read(8)
+            if len(header) < 8:
+                return False
+        
+        # Проверяем время модификации, если передано оригинальное время
+        if original_mtime is not None:
+            current_mtime = file_path.stat().st_mtime
+            # Проверяем, что файл был обновлен (разница в времени > 1 секунды)
+            if current_mtime <= original_mtime:
+                print(f"⚠️ Файл не был обновлен: ориг. {original_mtime:.1f}, тек. {current_mtime:.1f}")
+                return False
+            else:
+                print(f"✅ Файл обновлен: разница {current_mtime - original_mtime:.1f} сек")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Ошибка проверки файла: {e}")
+        return False
+
+
 def recalculate_excel_formulas(file_path: Path) -> bool:
     """
     Пересчитывает формулы в Excel файле перед чтением данных.
@@ -399,6 +442,9 @@ def recalculate_excel_formulas(file_path: Path) -> bool:
     
     try:
         print(f"🔄 Пересчитываем формулы с xlwings: {file_path.name}")
+        
+        # Сохраняем оригинальное время модификации файла
+        original_mtime = file_path.stat().st_mtime
         
         # Открываем Excel приложение (скрытое)
         with xw.App(visible=False, add_book=False) as app:
@@ -424,8 +470,13 @@ def recalculate_excel_formulas(file_path: Path) -> bool:
                 
                 # Сохраняем файл с пересчитанными формулами
                 wb.save()
-                print("✅ Формулы успешно пересчитаны и сохранены (xlwings)")
                 
+                # Проверяем, что файл действительно сохранен и обновлен
+                if not _verify_file_write(file_path, original_mtime):
+                    print("❌ Ошибка: файл не был корректно сохранен после пересчета!")
+                    return False
+                
+                print("✅ Формулы успешно пересчитаны и сохранены (xlwings)")
                 return True
                 
             finally:
@@ -438,16 +489,16 @@ def recalculate_excel_formulas(file_path: Path) -> bool:
         return False
 
 
-def read_excel_data() -> Tuple[List[pd.DataFrame], List[pd.DataFrame], int, Dict[str, int]]:
+def read_excel_data() -> Tuple[List[pd.DataFrame], List[pd.DataFrame], int, Dict[str, int], bool]:
     """
     Читает данные из Excel файла с учетом конкретных диапазонов.
     Перед чтением принудительно пересчитывает формулы Excel.
     
     Returns:
-        Кортеж: (alarm_items, warning_items, total_records, status_counts)
+        Кортеж: (alarm_items, warning_items, total_records, status_counts, recalc_success)
     """
     # Пересчитываем формулы перед чтением данных
-    recalculate_excel_formulas(EXCEL_FILE)
+    recalc_success = recalculate_excel_formulas(EXCEL_FILE)
     
     """
     Читает данные из Excel файла с учетом конкретных диапазонов.
@@ -509,7 +560,7 @@ def read_excel_data() -> Tuple[List[pd.DataFrame], List[pd.DataFrame], int, Dict
         except Exception as e:
             print(f"Ошибка при чтении листа {sheet_name}: {e}")
     
-    return alarm_items, warning_items, total_records, status_counts
+    return alarm_items, warning_items, total_records, status_counts, recalc_success
 
 
 def format_date(date_value) -> str:
@@ -713,7 +764,8 @@ def _add_chart_labels(x: List[int],
 def create_email_body(urgent_items: List[pd.DataFrame], 
                      warning_items: List[pd.DataFrame], 
                      total_records: int, 
-                     status_counts: Dict[str, int]) -> Tuple[str, Optional[Path]]:
+                     status_counts: Dict[str, int],
+                     recalc_success: bool = True) -> Tuple[str, Optional[Path]]:
     """
     Создает HTML-тело письма и путь к встроенному изображению диаграммы.
     
@@ -722,6 +774,7 @@ def create_email_body(urgent_items: List[pd.DataFrame],
         warning_items: Список DataFrame с элементами Внимание
         total_records: Общее количество записей
         status_counts: Словарь с количеством элементов по статусам
+        recalc_success: Успешность пересчета формул Excel
     
     Returns:
         Кортеж: (HTML-тело письма, путь к диаграмме)
@@ -731,6 +784,26 @@ def create_email_body(urgent_items: List[pd.DataFrame],
     unserviced_percentage = (unserviced_count / total_records * 100) if total_records > 0 else 0
     
     html_parts: List[str] = []
+    
+    # Предупреждение о неудачном пересчете формул
+    if not recalc_success:
+        html_parts.append(
+            f"""
+            <div style="background-color: #ff6b6b; border-radius: 8px; padding: 15px; border-left: 5px solid #e74c3c;
+                        color: white; margin-bottom: 20px; display: flex; align-items: center;">
+                <div style="margin-right: 15px;">
+                    <img src="cid:app_icon_alert" alt="Иконка приложения" style="width: 80px; height: 80px; border-radius: 8px;">
+                </div>
+                <div style="text-align: left;">
+                    <div style="font-size: 16px; font-weight: bold; margin-bottom: 10px;">⚠️ ВНИМАНИЕ! ТАБЛИЦА ОТКРЫТА! ⚠️</div>
+                    <div style="font-size: 14px; line-height: 1.4;">
+                        Перерасчёт графика обслуживания невозможен!<br/>
+                        Закройте таблицу чтобы восстановить расчёты, или живите дальше в проклятом мире, который сами и создали!
+                    </div>
+                </div>
+            </div>
+            """
+        )
     
     # Верхняя сводка - компактный вариант с названиями над цифрами #2c3e50 #2c3e50
     html_parts.append(
@@ -891,6 +964,15 @@ def send_email(html_body: str, recipients: List[str], chart_path: Optional[Path]
                 icon.add_header('Content-Disposition', 'inline', filename='manky.png')
                 msg.attach(icon)
         
+        # Добавляем иконку приложения
+        icon_path = DATA_DIR / "manky_alert.png"
+        if icon_path.exists():
+            with open(icon_path, 'rb') as icon_file:
+                icon = MIMEImage(icon_file.read())
+                icon.add_header('Content-ID', '<app_icon_alert>')
+                icon.add_header('Content-Disposition', 'inline', filename='manky_alert.png')
+                msg.attach(icon)
+        
         # Подключаемся к SMTP серверу и отправляем письмо
         server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
         # Не используем starttls() для порта 25 без шифрования
@@ -912,7 +994,7 @@ def main():
     print(f"Получатели: {', '.join(RECIPIENTS)}")
     
     # Читаем данные из Excel
-    alarm_items, warning_items, total_records, status_counts = read_excel_data()
+    alarm_items, warning_items, total_records, status_counts, recalc_success = read_excel_data()
     
     # Обновляем статистику обслуживания
     print("\n" + "="*60)
@@ -934,7 +1016,7 @@ def main():
         return
     
     # Формируем тело письма и строим диаграмму
-    email_body, chart_path = create_email_body(alarm_items, warning_items, total_records, status_counts)
+    email_body, chart_path = create_email_body(alarm_items, warning_items, total_records, status_counts, recalc_success)
     print("\nСформировано письмо:")
     
     # Отправляем письмо всем получателям
