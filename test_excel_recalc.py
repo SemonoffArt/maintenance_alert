@@ -13,7 +13,6 @@ sys.path.insert(0, str(Path(__file__).parent))
 from maintenance_alert import (
     recalculate_excel_formulas, 
     XLWINGS_AVAILABLE, 
-    OPENPYXL_AVAILABLE, 
     EXCEL_FILE
 )
 
@@ -24,11 +23,10 @@ def test_libraries():
     print("=" * 60)
     
     print(f"xlwings доступен: {'✅ Да' if XLWINGS_AVAILABLE else '❌ Нет'}")
-    print(f"openpyxl доступен: {'✅ Да' if OPENPYXL_AVAILABLE else '❌ Нет'}")
     
-    if not XLWINGS_AVAILABLE and not OPENPYXL_AVAILABLE:
-        print("\n❌ Ни одна из необходимых библиотек недоступна!")
-        print("💡 Установите: pip install xlwings openpyxl")
+    if not XLWINGS_AVAILABLE:
+        print("\n❌ xlwings недоступен!")
+        print("💡 Установите: pip install xlwings")
         return False
     
     return True
@@ -101,7 +99,7 @@ def main():
     else:
         print("\n⚠️ ОБНАРУЖЕНЫ ПРОБЛЕМЫ")
         if not libraries_ok:
-            print("- Установите недостающие библиотеки: pip install xlwings openpyxl")
+            print("- Установите недостающие библиотеки: pip install xlwings")
         if not file_ok:
             print("- Убедитесь, что Excel файл находится в правильном месте")
         if not recalc_ok and file_ok:

@@ -18,21 +18,15 @@ except ImportError:
     print("⚠️ xlwings не установлен. Формулы Excel могут не пересчитываться автоматически.")
     print("Установите xlwings: pip install xlwings")
 
-try:
-    from openpyxl import load_workbook
-    OPENPYXL_AVAILABLE = True
-except ImportError:
-    OPENPYXL_AVAILABLE = False
-
 # Версия программы
-VERSION = "1.2.0"
-RELEASE_DATE = "25.08.2025"
+VERSION = "1.3.0"
+RELEASE_DATE = "09.09.2025"
 PROGRAM_DIR = Path(__file__).parent.absolute()
 DATA_DIR = PROGRAM_DIR / "data"
 
 # Настройки
 EXCEL_FILENAME = "Обслуживание ПК и шкафов АСУТП.xlsx"
-CONFIG_FILE = DATA_DIR / "maintenance_alert_history.json"
+HISTORY_FILE = DATA_DIR / "maintenance_alert_history.json"
 
 # SMTP настройки
 SMTP_SERVER = "mgd-ex1.pavlik-gold.ru"
@@ -95,8 +89,8 @@ def load_config() -> Dict[str, Any]:
     Возвращает словарь с конфигурацией.
     """
     try:
-        if CONFIG_FILE.exists():
-            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+        if HISTORY_FILE.exists():
+            with open(HISTORY_FILE, 'r', encoding='utf-8') as f:
                 config = json.load(f)
                 # Проверяем структуру и добавляем недостающие поля
                 return _validate_config_structure(config)
@@ -141,9 +135,9 @@ def save_config(config: Dict[str, Any]) -> None:
     try:
         config['last_update'] = datetime.now().isoformat()
         config['version'] = VERSION
-        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+        with open(HISTORY_FILE, 'w', encoding='utf-8') as f:
             json.dump(config, f, ensure_ascii=False, indent=2)
-        print(f"✅ Конфигурация сохранена в {CONFIG_FILE}")
+        print(f"✅ Статистика сохранена в {HISTORY_FILE}")
     except Exception as e:
         print(f"❌ Ошибка при сохранении конфигурации: {e}")
 
@@ -394,23 +388,11 @@ def recalculate_excel_formulas(file_path: Path) -> bool:
     Returns:
         True если пересчет успешен, False в случае ошибки
     """
-    # Попытка использовать xlwings (приоритетный метод)
-    if XLWINGS_AVAILABLE:
-        return _recalculate_with_xlwings(file_path)
-    
-    # Фолбэк на openpyxl (ограниченные возможности)
-    if OPENPYXL_AVAILABLE:
-        return _recalculate_with_openpyxl(file_path)
-    
-    print("❌ Ни xlwings, ни openpyxl не доступны. Формулы Excel не будут пересчитаны!")
-    print("💡 Установите: pip install xlwings openpyxl")
-    return False
-
-
-def _recalculate_with_xlwings(file_path: Path) -> bool:
-    """
-    Пересчитывает формулы с помощью xlwings.
-    """
+    if not XLWINGS_AVAILABLE:
+        print("⚠️ xlwings недоступен. Формулы Excel могут быть неактуальными.")
+        print("💡 Установите: pip install xlwings")
+        return False
+        
     if not file_path.exists():
         print(f"❌ Файл не найден: {file_path}")
         return False
@@ -453,38 +435,6 @@ def _recalculate_with_xlwings(file_path: Path) -> bool:
     except Exception as e:
         print(f"❌ Ошибка при пересчете с xlwings: {e}")
         print("💡 Совет: убедитесь, что файл Excel не открыт в другом приложении")
-        return False
-
-
-def _recalculate_with_openpyxl(file_path: Path) -> bool:
-    """
-    Попытка пересчитать формулы с помощью openpyxl.
-    Ограниченные возможности по сравнению с xlwings.
-    """
-    if not file_path.exists():
-        print(f"❌ Файл не найден: {file_path}")
-        return False
-    
-    try:
-        print(f"⚠️ Пытаемся обновить формулы с openpyxl: {file_path.name}")
-        print("💡 Ограниченные возможности пересчета. Рекомендуем использовать xlwings.")
-        
-        # Открываем файл
-        wb = load_workbook(file_path, data_only=False)
-        
-        # Пытаемся установить режим автоматического пересчета
-        wb.calculation.calcMode = 'auto'
-        
-        # Сохраняем файл
-        wb.save(file_path)
-        wb.close()
-        
-        print("✅ Файл обновлен с openpyxl (ограниченные возможности)")
-        print("⚠️ Обратите внимание: openpyxl может не полностью пересчитать все формулы")
-        return True
-        
-    except Exception as e:
-        print(f"❌ Ошибка при работе с openpyxl: {e}")
         return False
 
 
