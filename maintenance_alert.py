@@ -478,7 +478,7 @@ def recalculate_excel_formulas(file_path: Path) -> bool:
                 
                 print("✅ Формулы успешно пересчитаны и сохранены (xlwings)")
                 return True
-                
+
             finally:
                 # Закрываем книгу
                 wb.close()
@@ -792,11 +792,11 @@ def create_email_body(urgent_items: List[pd.DataFrame],
             <div style="background-color: #ff6b6b; border-radius: 8px; padding: 15px; border-left: 5px solid #e74c3c;
                         color: white; margin-bottom: 20px; display: flex; align-items: center;">
                 <div style="margin-right: 15px;">
-                    <img src="cid:app_icon_alert" alt="Иконка приложения" style="width: 80px; height: 80px; border-radius: 8px;">
+                    <img src="cid:app_icon_alert" alt="Иконка приложения" style="width: 86px; height: 86px; border-radius: 8px;">
                 </div>
                 <div style="text-align: left;">
                     <div style="font-size: 16px; font-weight: bold; margin-bottom: 10px;">⚠️ ВНИМАНИЕ! ТАБЛИЦА ОТКРЫТА! ⚠️</div>
-                    <div style="font-size: 14px; line-height: 1.4;">
+                    <div style="font-size: 16px; line-height: 1.4;">
                         Перерасчёт графика обслуживания невозможен!<br/>
                         Закройте таблицу чтобы восстановить расчёты, или живите дальше в проклятом мире, который сами и создали!
                     </div>
