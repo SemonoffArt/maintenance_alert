@@ -10,6 +10,19 @@ import sys
 import json
 import matplotlib.pyplot as plt
 from typing import Dict, List, Tuple, Optional, Any
+try:
+    import xlwings as xw
+    XLWINGS_AVAILABLE = True
+except ImportError:
+    XLWINGS_AVAILABLE = False
+    print("⚠️ xlwings не установлен. Формулы Excel могут не пересчитываться автоматически.")
+    print("Установите xlwings: pip install xlwings")
+
+try:
+    from openpyxl import load_workbook
+    OPENPYXL_AVAILABLE = True
+except ImportError:
+    OPENPYXL_AVAILABLE = False
 
 # Версия программы
 VERSION = "1.2.0"
@@ -370,7 +383,122 @@ def get_maintenance_statistics() -> Dict[str, int]:
     return merged
 
 
+def recalculate_excel_formulas(file_path: Path) -> bool:
+    """
+    Пересчитывает формулы в Excel файле перед чтением данных.
+    Использует xlwings для открытия Excel в фоне и принудительного пересчета.
+    
+    Args:
+        file_path: Путь к Excel файлу
+    
+    Returns:
+        True если пересчет успешен, False в случае ошибки
+    """
+    # Попытка использовать xlwings (приоритетный метод)
+    if XLWINGS_AVAILABLE:
+        return _recalculate_with_xlwings(file_path)
+    
+    # Фолбэк на openpyxl (ограниченные возможности)
+    if OPENPYXL_AVAILABLE:
+        return _recalculate_with_openpyxl(file_path)
+    
+    print("❌ Ни xlwings, ни openpyxl не доступны. Формулы Excel не будут пересчитаны!")
+    print("💡 Установите: pip install xlwings openpyxl")
+    return False
+
+
+def _recalculate_with_xlwings(file_path: Path) -> bool:
+    """
+    Пересчитывает формулы с помощью xlwings.
+    """
+    if not file_path.exists():
+        print(f"❌ Файл не найден: {file_path}")
+        return False
+    
+    try:
+        print(f"🔄 Пересчитываем формулы с xlwings: {file_path.name}")
+        
+        # Открываем Excel приложение (скрытое)
+        with xw.App(visible=False, add_book=False) as app:
+            # Открываем книгу
+            wb = app.books.open(file_path)
+            
+            try:
+                # Включаем автоматический пересчет
+                app.calculation = 'automatic'
+                
+                # Принудительно пересчитываем все формулы
+                wb.app.calculate()
+                
+                # Дополнительно принудительно пересчитываем каждый лист
+                for sheet in wb.sheets:
+                    if sheet.name in SHEETS_CONFIG:
+                        try:
+                            # Пытаемся принудительно пересчитать лист
+                            sheet.api.Calculate()
+                        except AttributeError:
+                            # Если метод недоступен, пропускаем
+                            pass
+                
+                # Сохраняем файл с пересчитанными формулами
+                wb.save()
+                print("✅ Формулы успешно пересчитаны и сохранены (xlwings)")
+                
+                return True
+                
+            finally:
+                # Закрываем книгу
+                wb.close()
+                
+    except Exception as e:
+        print(f"❌ Ошибка при пересчете с xlwings: {e}")
+        print("💡 Совет: убедитесь, что файл Excel не открыт в другом приложении")
+        return False
+
+
+def _recalculate_with_openpyxl(file_path: Path) -> bool:
+    """
+    Попытка пересчитать формулы с помощью openpyxl.
+    Ограниченные возможности по сравнению с xlwings.
+    """
+    if not file_path.exists():
+        print(f"❌ Файл не найден: {file_path}")
+        return False
+    
+    try:
+        print(f"⚠️ Пытаемся обновить формулы с openpyxl: {file_path.name}")
+        print("💡 Ограниченные возможности пересчета. Рекомендуем использовать xlwings.")
+        
+        # Открываем файл
+        wb = load_workbook(file_path, data_only=False)
+        
+        # Пытаемся установить режим автоматического пересчета
+        wb.calculation.calcMode = 'auto'
+        
+        # Сохраняем файл
+        wb.save(file_path)
+        wb.close()
+        
+        print("✅ Файл обновлен с openpyxl (ограниченные возможности)")
+        print("⚠️ Обратите внимание: openpyxl может не полностью пересчитать все формулы")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Ошибка при работе с openpyxl: {e}")
+        return False
+
+
 def read_excel_data() -> Tuple[List[pd.DataFrame], List[pd.DataFrame], int, Dict[str, int]]:
+    """
+    Читает данные из Excel файла с учетом конкретных диапазонов.
+    Перед чтением принудительно пересчитывает формулы Excel.
+    
+    Returns:
+        Кортеж: (alarm_items, warning_items, total_records, status_counts)
+    """
+    # Пересчитываем формулы перед чтением данных
+    recalculate_excel_formulas(EXCEL_FILE)
+    
     """
     Читает данные из Excel файла с учетом конкретных диапазонов.
     
