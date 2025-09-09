@@ -1,4 +1,3 @@
-from turtle import color
 import pandas as pd
 from datetime import datetime, timedelta
 import smtplib
@@ -9,20 +8,23 @@ from pathlib import Path
 import sys
 import json
 import matplotlib.pyplot as plt
+import logging
 from typing import Dict, List, Tuple, Optional, Any
 try:
     import xlwings as xw
     XLWINGS_AVAILABLE = True
 except ImportError:
     XLWINGS_AVAILABLE = False
-    print("⚠️ xlwings не установлен. Формулы Excel могут не пересчитываться автоматически.")
-    print("Установите xlwings: pip install xlwings")
+    log_print("⚠️ xlwings не установлен. Формулы Excel могут не пересчитываться автоматически.")
+    log_print("Установите xlwings: pip install xlwings")
 
 # Версия программы
 VERSION = "1.3.0"
 RELEASE_DATE = "09.09.2025"
 PROGRAM_DIR = Path(__file__).parent.absolute()
 DATA_DIR = PROGRAM_DIR / "data"
+# Путь к файлу логов
+LOG_FILE = DATA_DIR / "maintenance_alert.log"
 
 # Настройки
 EXCEL_FILENAME = "Обслуживание ПК и шкафов АСУТП.xlsx"
@@ -57,6 +59,57 @@ SHEETS_CONFIG = {
 MAINTENANCE_STATUSES = ["ОБСЛУЖИТЬ", "Внимание", "Не требуется"]
 
 
+
+
+class DualLogger:
+    """Класс для дублированного вывода в консоль и файл"""
+    
+    def __init__(self, log_file_path: Path):
+        self.log_file_path = log_file_path
+        self._setup_logging()
+        
+    def _setup_logging(self):
+        """Настройка системы логирования"""
+        # Создаем папку для логов, если она не существует
+        self.log_file_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Настраиваем базовое логирование
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S',
+            handlers=[
+                logging.FileHandler(self.log_file_path, encoding='utf-8'),
+                logging.StreamHandler(sys.stdout)
+            ]
+        )
+        
+        self.logger = logging.getLogger('maintenance_alert')
+    
+    def log(self, message: str):
+        """Выводит сообщение в консоль и записывает в файл"""
+        self.logger.info(message)
+    
+    def log_separator(self, char='=', length=60):
+        """Добавляет разделитель в лог"""
+        self.log(char * length)
+    
+    def log_section(self, title: str):
+        """Добавляет заголовок секции в лог"""
+        self.log_separator()
+        self.log(title)
+        self.log_separator()
+
+
+# Инициализация глобального логгера
+logger = DualLogger(LOG_FILE)
+
+
+def log_print(message: str):
+    """Функция-обертка для совместимости с существующим кодом"""
+    logger.log(message)
+
+
 def get_excel_file_path() -> Path:
     """
     Ищет Excel-файл сначала в папке скрипта, затем уровнем выше.
@@ -77,10 +130,10 @@ EXCEL_FILE = get_excel_file_path()
 
 def show_version():
     """Отображает информацию о версии программы"""
-    print(f"🔧 Система уведомлений о техническом обслуживании v{VERSION}")
-    print(f"📅 Дата выпуска: {RELEASE_DATE}")
-    print(f"🐍 Python: {sys.version.split()[0]}")
-    print("=" * 60)
+    log_print(f"🔧 Система уведомлений о техническом обслуживании v{VERSION}")
+    log_print(f"📅 Дата выпуска: {RELEASE_DATE}")
+    log_print(f"🐍 Python: {sys.version.split()[0]}")
+    log_print("=" * 60)
 
 
 def load_config() -> Dict[str, Any]:
@@ -98,7 +151,7 @@ def load_config() -> Dict[str, Any]:
             # Создаем новый файл конфигурации
             return _create_default_config()
     except Exception as e:
-        print(f"Ошибка при загрузке конфигурации: {e}")
+        log_print(f"Ошибка при загрузке конфигурации: {e}")
         # Возвращаем конфигурацию по умолчанию
         return _create_default_config()
 
@@ -137,9 +190,9 @@ def save_config(config: Dict[str, Any]) -> None:
         config['version'] = VERSION
         with open(HISTORY_FILE, 'w', encoding='utf-8') as f:
             json.dump(config, f, ensure_ascii=False, indent=2)
-        print(f"✅ Статистика сохранена в {HISTORY_FILE}")
+        log_print(f"✅ Статистика сохранена в {HISTORY_FILE}")
     except Exception as e:
-        print(f"❌ Ошибка при сохранении конфигурации: {e}")
+        log_print(f"❌ Ошибка при сохранении конфигурации: {e}")
 
 
 def update_maintenance_statistics(alarm_items: List[pd.DataFrame], 
@@ -166,7 +219,7 @@ def update_maintenance_statistics(alarm_items: List[pd.DataFrame],
     today = now.date()
     today_str = today.isoformat()
     
-    print(f"🔍 Проверяем существование записи за {today.strftime('%d.%m.%Y')}...")
+    log_print(f"🔍 Проверяем существование записи за {today.strftime('%d.%m.%Y')}...")
     
     # Подсчитываем обслуженное оборудование (статус "В норме")
     ok_count = status_counts.get('Не требуется', 0)
@@ -191,12 +244,12 @@ def update_maintenance_statistics(alarm_items: List[pd.DataFrame],
     try:
         if today_record_index is not None:
             # Перезаписываем существующую запись
-            print(f"📝 Перезаписываем существующую запись за {today.strftime('%d.%m.%Y')}...")
+            log_print(f"📝 Перезаписываем существующую запись за {today.strftime('%d.%m.%Y')}...")
             config['maintenance_history'][today_record_index] = maintenance_record
             action = "обновлена"
         else:
             # Добавляем новую запись
-            print(f"📝 Создаем новую запись за {today.strftime('%d.%m.%Y')}...")
+            log_print(f"📝 Создаем новую запись за {today.strftime('%d.%m.%Y')}...")
             config['maintenance_history'].append(maintenance_record)
             action = "добавлена"
         
@@ -207,11 +260,11 @@ def update_maintenance_statistics(alarm_items: List[pd.DataFrame],
         # Сохраняем обновленную конфигурацию
         save_config(config)
         
-        print(f"✅ Запись за {today.strftime('%d.%m.%Y')} {action}: {ok_count} обслужено")
+        log_print(f"✅ Запись за {today.strftime('%d.%m.%Y')} {action}: {ok_count} обслужено")
         return config
         
     except Exception as e:
-        print(f"❌ Ошибка при обновлении статистики: {e}")
+        log_print(f"❌ Ошибка при обновлении статистики: {e}")
         return config
 
 
@@ -408,15 +461,15 @@ def _verify_file_write(file_path: Path, original_mtime: float = None) -> bool:
             current_mtime = file_path.stat().st_mtime
             # Проверяем, что файл был обновлен (разница в времени > 1 секунды)
             if current_mtime <= original_mtime:
-                print(f"⚠️ Файл не был обновлен: ориг. {original_mtime:.1f}, тек. {current_mtime:.1f}")
+                log_print(f"⚠️ Файл не был обновлен: ориг. {original_mtime:.1f}, тек. {current_mtime:.1f}")
                 return False
             else:
-                print(f"✅ Файл обновлен: разница {current_mtime - original_mtime:.1f} сек")
+                log_print(f"✅ Файл обновлен: разница {current_mtime - original_mtime:.1f} сек")
         
         return True
         
     except Exception as e:
-        print(f"❌ Ошибка проверки файла: {e}")
+        log_print(f"❌ Ошибка проверки файла: {e}")
         return False
 
 
@@ -432,16 +485,16 @@ def recalculate_excel_formulas(file_path: Path) -> bool:
         True если пересчет успешен, False в случае ошибки
     """
     if not XLWINGS_AVAILABLE:
-        print("⚠️ xlwings недоступен. Формулы Excel могут быть неактуальными.")
-        print("💡 Установите: pip install xlwings")
+        log_print("⚠️ xlwings недоступен. Формулы Excel могут быть неактуальными.")
+        log_print("💡 Установите: pip install xlwings")
         return False
         
     if not file_path.exists():
-        print(f"❌ Файл не найден: {file_path}")
+        log_print(f"❌ Файл не найден: {file_path}")
         return False
     
     try:
-        print(f"🔄 Пересчитываем формулы с xlwings: {file_path.name}")
+        log_print(f"🔄 Пересчитываем формулы с xlwings: {file_path.name}")
         
         # Сохраняем оригинальное время модификации файла
         original_mtime = file_path.stat().st_mtime
@@ -473,10 +526,10 @@ def recalculate_excel_formulas(file_path: Path) -> bool:
                 
                 # Проверяем, что файл действительно сохранен и обновлен
                 if not _verify_file_write(file_path, original_mtime):
-                    print("❌ Ошибка: файл не был корректно сохранен после пересчета!")
+                    log_print("❌ Ошибка: файл не был корректно сохранен после пересчета!")
                     return False
                 
-                print("✅ Формулы успешно пересчитаны и сохранены (xlwings)")
+                log_print("✅ Формулы успешно пересчитаны и сохранены (xlwings)")
                 return True
 
             finally:
@@ -484,8 +537,8 @@ def recalculate_excel_formulas(file_path: Path) -> bool:
                 wb.close()
                 
     except Exception as e:
-        print(f"❌ Ошибка при пересчете с xlwings: {e}")
-        print("💡 Совет: убедитесь, что файл Excel не открыт в другом приложении")
+        log_print(f"❌ Ошибка при пересчете с xlwings: {e}")
+        log_print("💡 Совет: убедитесь, что файл Excel не открыт в другом приложении")
         return False
 
 
@@ -513,7 +566,7 @@ def read_excel_data() -> Tuple[List[pd.DataFrame], List[pd.DataFrame], int, Dict
     
     for sheet_name, config in SHEETS_CONFIG.items():
         try:
-            print(f"Читаем лист: {sheet_name}")
+            log_print(f"Читаем лист: {sheet_name}")
             
             # Читаем данные из указанного диапазона
             df = pd.read_excel(
@@ -544,7 +597,7 @@ def read_excel_data() -> Tuple[List[pd.DataFrame], List[pd.DataFrame], int, Dict
             alarm = df[df['Статус'] == 'ОБСЛУЖИТЬ']
             warning = df[df['Статус'] == 'Внимание']
             
-            print(f"  Найдено СРОЧНО: {len(alarm)}, Внимание: {len(warning)}")
+            log_print(f"  Найдено ОБСЛУЖИТЬ: {len(alarm)}, Внимание: {len(warning)}")
             
             # Добавляем тип оборудования
             if not alarm.empty:
@@ -558,7 +611,7 @@ def read_excel_data() -> Tuple[List[pd.DataFrame], List[pd.DataFrame], int, Dict
                 warning_items.append(warning)
                 
         except Exception as e:
-            print(f"Ошибка при чтении листа {sheet_name}: {e}")
+            log_print(f"Ошибка при чтении листа {sheet_name}: {e}")
     
     return alarm_items, warning_items, total_records, status_counts, recalc_success
 
@@ -706,7 +759,7 @@ def create_maintenance_chart() -> Optional[Path]:
         return chart_path
         
     except Exception as e:
-        print(f"❌ Не удалось построить диаграмму: {e}")
+        log_print(f"❌ Не удалось построить диаграмму: {e}")
         return None
 
 
@@ -979,52 +1032,52 @@ def send_email(html_body: str, recipients: List[str], chart_path: Optional[Path]
         server.sendmail(SENDER_EMAIL, recipients, msg.as_string())
         server.quit()
         
-        print(f"✅ Письмо успешно отправлено {len(recipients)} получателям")
+        log_print(f"✅ Письмо успешно отправлено {len(recipients)} получателям")
         return True
         
     except Exception as e:
-        print(f"❌ Ошибка при отправке письма: {e}")
+        log_print(f"❌ Ошибка при отправке письма: {e}")
         return False
 
 
 def main():
     """Основная функция программы"""
-    print("🚀 ПРОГРАММА ЗАПУЩЕНА")
-    print("Начинаем проверку графика технического обслуживания...")
-    print(f"Получатели: {', '.join(RECIPIENTS)}")
+    log_print("🚀 ПРОГРАММА ЗАПУЩЕНА")
+    log_print("Начинаем проверку графика технического обслуживания...")
+    log_print(f"Получатели: {', '.join(RECIPIENTS)}")
     
     # Читаем данные из Excel
     alarm_items, warning_items, total_records, status_counts, recalc_success = read_excel_data()
     
     # Обновляем статистику обслуживания
-    print("\n" + "="*60)
-    print("📊 ОБНОВЛЕНИЕ СТАТИСТИКИ ОБСЛУЖИВАНИЯ")
-    print("="*60)
+    log_print("\n" + "="*60)
+    log_print("📈 ОБНОВЛЕНИЕ СТАТИСТИКИ ОБСЛУЖИВАНИЯ")
+    log_print("="*60)
     update_maintenance_statistics(alarm_items, warning_items, total_records, status_counts)
-    print("="*60 + "\n")
+    log_print("="*60 + "\n")
     
     # Проверяем, есть ли элементы, требующие внимания
     total_alarm = sum(len(df) for df in alarm_items) if alarm_items else 0
     total_warning = sum(len(df) for df in warning_items) if warning_items else 0
     
-    print(f"\nИтого найдено:")
-    print(f"  СРОЧНО: {total_alarm}")
-    print(f"  Внимание: {total_warning}")
+    log_print(f"\nИтого найдено:")
+    log_print(f"  ОБСЛУЖИТЬ: {total_alarm}")
+    log_print(f"  Внимание: {total_warning}")
     
     if total_alarm == 0 and total_warning == 0:
-        print("Нет срочных напоминаний. Все оборудование в порядке.")
+        log_print("Нет срочных напоминаний. Все оборудование в порядке.")
         return
     
     # Формируем тело письма и строим диаграмму
     email_body, chart_path = create_email_body(alarm_items, warning_items, total_records, status_counts, recalc_success)
-    print("\nСформировано письмо:")
+    log_print("\nСформировано письмо:")
     
     # Отправляем письмо всем получателям
-    print(f"\nОтправляем письмо {len(RECIPIENTS)} получателям...")
+    log_print(f"\nОтправляем письмо {len(RECIPIENTS)} получателям...")
     if send_email(email_body, RECIPIENTS, chart_path):
-        print("Письма отправлены успешно")
+        log_print("Письма отправлены успешно")
     else:
-        print("Не удалось отправить письма")
+        log_print("Не удалось отправить письма")
 
 
 if __name__ == "__main__":
