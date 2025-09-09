@@ -5,18 +5,21 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
+from email.mime.base import MIMEBase
+from email import encoders
 from pathlib import Path
 import sys
 import json
 import matplotlib.pyplot as plt
 import logging
+from openpyxl import load_workbook
 from typing import Dict, List, Tuple, Optional, Any, NamedTuple
 
 # --- 1. Конфигурация и константы ---
 class Config:
     """Класс для хранения всех конфигурационных данных."""
-    VERSION = "1.3.0"
-    RELEASE_DATE = "09.09.2025"
+    VERSION = "1.4.0"
+    RELEASE_DATE = "10.09.2025"
 
     PROGRAM_DIR = Path(__file__).parent.absolute()
     DATA_DIR = PROGRAM_DIR / "data"
@@ -173,6 +176,107 @@ class ExcelHandler:
             self.logger.log(f"❌ Ошибка при пересчете с xlwings: {e}")
             self.logger.log("💡 Совет: убедитесь, что файл Excel не открыт в другом приложении")
             return False, None
+
+    def generate_maintenance_data_file(self, urgent_items: List[pd.DataFrame]) -> Optional[Path]:
+        """
+        Создает файл maintenance_data.xlsx на основе шаблона с данными для обслуживания.
+        
+        Args:
+            urgent_items: Список DataFrame с элементами требующими обслуживания
+            
+        Returns:
+            Путь к созданному файлу или None при ошибке
+        """
+        # Получаем текущую дату в формате DD.MM.YYYY
+        current_date = datetime.now().strftime("%d.%m.%Y")
+        # current_date2 = datetime.now().strftime("%d_%m_%Y")
+        template_path = self.config.DATA_DIR / "template.xlsx"
+        output_path = self.config.TMP_DIR / f"maintenance_data_{current_date}.xlsx"
+        
+        if not template_path.exists():
+            self.logger.log(f"❌ Шаблон не найден: {template_path}")
+            return None
+            
+        try:
+            # Создаем папку tmp если не существует
+            self.config.TMP_DIR.mkdir(parents=True, exist_ok=True)
+            
+            # Копируем шаблон
+            wb = load_workbook(template_path)
+            
+            
+            # Определяем столбцы для экспорта
+            export_columns = ["№", "Объект", "Наименование", "Обозначение", "Место расположения", "Работы", "Дата последнего ТО"]
+            
+            # Обрабатываем каждый лист
+            for sheet_name in self.config.SHEETS_CONFIG.keys():
+                if sheet_name in wb.sheetnames:
+                    ws = wb[sheet_name]
+                    
+                    # Записываем дату в ячейку D1
+                    ws['D1'] = current_date
+                    self.logger.log(f"📅 Записана дата {current_date} в ячейку D1 листа '{sheet_name}'")
+                    
+                    # Находим данные для этого листа
+                    sheet_data = None
+                    for df in urgent_items:
+                        if 'Тип' in df.columns and df['Тип'].iloc[0] == sheet_name:
+                            sheet_data = df
+                            break
+                    
+                    if sheet_data is not None and not sheet_data.empty:
+                        self.logger.log(f"📝 Записываем {len(sheet_data)} записей на лист '{sheet_name}'")
+                        
+                        # Записываем данные начиная с 5й строки
+                        start_row = 5
+                        record_number = 1  # Нумерация записей начинается с 1
+                        for idx, (_, row) in enumerate(sheet_data.iterrows()):
+                            current_row = start_row + idx
+                            
+                            # Записываем данные в соответствующие столбцы
+                            for col_idx, col_name in enumerate(export_columns, start=1):
+                                if col_name == "№":
+                                    # Для колонки "№" используем последовательную нумерацию
+                                    value = str(record_number)
+                                elif col_name in row:
+                                    value = row[col_name]
+                                    # Преобразуем в скаляр
+                                    if hasattr(value, 'item'):
+                                        value = value.item()
+                                    # Форматируем дату если это колонка с датой
+                                    if 'Дата' in col_name and pd.notna(value):
+                                        if hasattr(value, 'strftime'):
+                                            value = value.strftime('%d.%m.%Y')
+                                        else:
+                                            value = str(value)
+                                    elif pd.isna(value):
+                                        value = ""
+                                    else:
+                                        value = str(value) if value is not None else ""
+                                else:
+                                    value = ""
+                                
+                                ws.cell(row=current_row, column=col_idx, value=value)
+                            
+                            record_number += 1  # Увеличиваем номер записи
+                    else:
+                        self.logger.log(f"ℹ️ Нет данных для записи на лист '{sheet_name}'")
+
+                    #Устанавливаем фокус  в левый верхний угол
+                    # wb.views.sheetView[0].topLeftCell = 'A1'
+                    # ws['A1'].select()
+
+
+            # Сохраняем файл
+            wb.save(output_path)
+            wb.close()
+            
+            self.logger.log(f"✅ Файл maintenance_data.xlsx создан: {output_path}")
+            return output_path
+            
+        except Exception as e:
+            self.logger.log(f"❌ Ошибка при создании файла maintenance_data.xlsx: {e}")
+            return None
 
     def read_data(self) -> Tuple[List[pd.DataFrame], List[pd.DataFrame], int, Dict[str, int], bool]:
         """Читает данные из Excel файла."""
@@ -728,7 +832,7 @@ class EmailSender:
         self.config = config
         self.logger = logger
 
-    def send(self, html_body: str, recipients: List[str], chart_path: Optional[Path] = None) -> bool:
+    def send(self, html_body: str, recipients: List[str], chart_path: Optional[Path] = None, attachment_path: Optional[Path] = None) -> bool:
         """Отправляет email через SMTP."""
         try:
             # Создаем сообщение
@@ -764,6 +868,19 @@ class EmailSender:
                     icon.add_header('Content-ID', '<app_icon_alert>')
                     icon.add_header('Content-Disposition', 'inline', filename='manky_alert.png')
                     msg.attach(icon)
+            
+            # Добавляем вложение с файлом maintenance_data.xlsx
+            if attachment_path and attachment_path.exists():
+                with open(attachment_path, 'rb') as attachment_file:
+                    attachment = MIMEBase('application', 'vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                    attachment.set_payload(attachment_file.read())
+                    encoders.encode_base64(attachment)
+                    attachment.add_header(
+                        'Content-Disposition',
+                        f'attachment; filename="{attachment_path.name}"'
+                    )
+                    msg.attach(attachment)
+                    self.logger.log(f"📎 Прикреплен файл: {attachment_path.name}")
             # Подключаемся к SMTP серверу и отправляем письмо
             server = smtplib.SMTP(self.config.SMTP_SERVER, self.config.SMTP_PORT)
             # Не используем starttls() для порта 25 без шифрования
@@ -824,11 +941,22 @@ class MaintenanceAlertApp:
         )
         self.logger.log("\nСформировано письмо:")
 
+        # Генерируем файл maintenance_data.xlsx с данными для обслуживания
+        maintenance_data_file = None
+        if alarm_items:  # Создаем файл только если есть срочные задачи
+            self.logger.log("📝 Генерируем файл maintenance_data.xlsx...")
+            maintenance_data_file = self.excel_handler.generate_maintenance_data_file(alarm_items)
+            if maintenance_data_file:
+                self.logger.log(f"✅ Файл с данными для обслуживания готов: {maintenance_data_file.name}")
+            else:
+                self.logger.log("⚠️ Не удалось создать файл maintenance_data.xlsx")
+
         self.logger.log(f"\nОтправляем письмо {len(self.config.RECIPIENTS)} получателям...")
-        if self.email_sender.send(email_body, self.config.RECIPIENTS, chart_path):
+        if self.email_sender.send(email_body, self.config.RECIPIENTS, chart_path, maintenance_data_file):
             self.logger.log("Письма отправлены успешно")
         else:
             self.logger.log("Не удалось отправить письма")
+        self.logger.log("\n\n\n")
 
 def main():
     """Точка входа в программу."""
