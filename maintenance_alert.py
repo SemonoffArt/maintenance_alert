@@ -15,14 +15,15 @@ try:
     XLWINGS_AVAILABLE = True
 except ImportError:
     XLWINGS_AVAILABLE = False
-    log_print("⚠️ xlwings не установлен. Формулы Excel могут не пересчитываться автоматически.")
-    log_print("Установите xlwings: pip install xlwings")
+    # Отложенное логирование для отсутствующего xlwings
+    _xlwings_warning_logged = False
 
 # Версия программы
 VERSION = "1.3.0"
 RELEASE_DATE = "09.09.2025"
 PROGRAM_DIR = Path(__file__).parent.absolute()
 DATA_DIR = PROGRAM_DIR / "data"
+TMP_DIR = PROGRAM_DIR / "tmp"
 # Путь к файлу логов
 LOG_FILE = DATA_DIR / "maintenance_alert.log"
 
@@ -473,28 +474,38 @@ def _verify_file_write(file_path: Path, original_mtime: float = None) -> bool:
         return False
 
 
-def recalculate_excel_formulas(file_path: Path) -> bool:
+def recalculate_excel_formulas(file_path: Path) -> Tuple[bool, Optional[Path]]:
     """
     Пересчитывает формулы в Excel файле перед чтением данных.
     Использует xlwings для открытия Excel в фоне и принудительного пересчета.
+    Сохраняет пересчитанный файл в папку ./tmp/.
     
     Args:
-        file_path: Путь к Excel файлу
+        file_path: Путь к исходному Excel файлу
     
     Returns:
-        True если пересчет успешен, False в случае ошибки
+        Кортеж: (успешность пересчета, путь к файлу в tmp или None)
     """
     if not XLWINGS_AVAILABLE:
-        log_print("⚠️ xlwings недоступен. Формулы Excel могут быть неактуальными.")
-        log_print("💡 Установите: pip install xlwings")
-        return False
+        global _xlwings_warning_logged
+        if not _xlwings_warning_logged:
+            log_print("⚠️ xlwings недоступен. Формулы Excel могут быть неактуальными.")
+            log_print("💡 Установите: pip install xlwings")
+            _xlwings_warning_logged = True
+        return False, None
         
     if not file_path.exists():
         log_print(f"❌ Файл не найден: {file_path}")
-        return False
+        return False, None
+    
+    # Создаем папку tmp, если она не существует
+    TMP_DIR.mkdir(parents=True, exist_ok=True)
+    
+    # Определяем путь к файлу в tmp папке
+    tmp_file_path = TMP_DIR / file_path.name
     
     try:
-        log_print(f"🔄 Пересчитываем формулы с xlwings: {file_path.name}")
+        log_print(f"🔄 Пересчитываем формулы с xlwings: {file_path}")
         
         # Сохраняем оригинальное время модификации файла
         original_mtime = file_path.stat().st_mtime
@@ -502,7 +513,7 @@ def recalculate_excel_formulas(file_path: Path) -> bool:
         # Открываем Excel приложение (скрытое)
         with xw.App(visible=False, add_book=False) as app:
             # Открываем книгу
-            wb = app.books.open(file_path)
+            wb = app.books.open(str(file_path))
             
             try:
                 # Включаем автоматический пересчет
@@ -521,16 +532,16 @@ def recalculate_excel_formulas(file_path: Path) -> bool:
                             # Если метод недоступен, пропускаем
                             pass
                 
-                # Сохраняем файл с пересчитанными формулами
-                wb.save()
+                # Сохраняем файл с пересчитанными формулами в tmp папку
+                wb.save(tmp_file_path)
                 
-                # Проверяем, что файл действительно сохранен и обновлен
-                if not _verify_file_write(file_path, original_mtime):
-                    log_print("❌ Ошибка: файл не был корректно сохранен после пересчета!")
-                    return False
+                # Проверяем, что файл действительно сохранен
+                if not _verify_file_write(tmp_file_path):
+                    log_print("❌ Ошибка: файл не был корректно сохранен в tmp папку!")
+                    return False, None
                 
-                log_print("✅ Формулы успешно пересчитаны и сохранены (xlwings)")
-                return True
+                log_print(f"✅ Формулы успешно пересчитаны и сохранены в {tmp_file_path}")
+                return True, tmp_file_path
 
             finally:
                 # Закрываем книгу
@@ -539,26 +550,27 @@ def recalculate_excel_formulas(file_path: Path) -> bool:
     except Exception as e:
         log_print(f"❌ Ошибка при пересчете с xlwings: {e}")
         log_print("💡 Совет: убедитесь, что файл Excel не открыт в другом приложении")
-        return False
+        return False, None
 
 
 def read_excel_data() -> Tuple[List[pd.DataFrame], List[pd.DataFrame], int, Dict[str, int], bool]:
     """
     Читает данные из Excel файла с учетом конкретных диапазонов.
-    Перед чтением принудительно пересчитывает формулы Excel.
+    Перед чтением принудительно пересчитывает формулы Excel и сохраняет в ./tmp/.
     
     Returns:
         Кортеж: (alarm_items, warning_items, total_records, status_counts, recalc_success)
     """
-    # Пересчитываем формулы перед чтением данных
-    recalc_success = recalculate_excel_formulas(EXCEL_FILE)
+    # Пересчитываем формулы перед чтением данных и получаем путь к tmp файлу
+    recalc_success, excel_file_to_use = recalculate_excel_formulas(EXCEL_FILE)
     
-    """
-    Читает данные из Excel файла с учетом конкретных диапазонов.
+    # Используем tmp файл, если пересчет успешен, иначе оригинальный
+    if excel_file_to_use is None:
+        excel_file_to_use = EXCEL_FILE
+        log_print(f"⚠️ Используем оригинальный файл: {EXCEL_FILE}")
+    else:
+        log_print(f"✅ Используем файл с пересчитанными формулами: {excel_file_to_use}")
     
-    Returns:
-        Кортеж: (alarm_items, warning_items, total_records, status_counts)
-    """
     alarm_items = []
     warning_items = []
     total_records = 0
@@ -570,7 +582,7 @@ def read_excel_data() -> Tuple[List[pd.DataFrame], List[pd.DataFrame], int, Dict
             
             # Читаем данные из указанного диапазона
             df = pd.read_excel(
-                EXCEL_FILE, 
+                excel_file_to_use, 
                 sheet_name=sheet_name,
                 header=3,  # Заголовки в строке 4 (индекс 3)
                 nrows=500  # Максимальное количество строк
