@@ -18,7 +18,7 @@ from typing import Dict, List, Tuple, Optional, Any, NamedTuple
 # --- 1. Конфигурация и константы ---
 class Config:
     """Класс для хранения всех конфигурационных данных."""
-    VERSION = "1.4.0"
+    VERSION = "1.5.0"
     RELEASE_DATE = "10.09.2025"
 
     PROGRAM_DIR = Path(__file__).parent.absolute()
@@ -180,10 +180,8 @@ class ExcelHandler:
     def generate_maintenance_data_file(self, urgent_items: List[pd.DataFrame]) -> Optional[Path]:
         """
         Создает файл maintenance_data.xlsx на основе шаблона с данными для обслуживания.
-        
         Args:
             urgent_items: Список DataFrame с элементами требующими обслуживания
-            
         Returns:
             Путь к созданному файлу или None при ошибке
         """
@@ -206,7 +204,8 @@ class ExcelHandler:
             
             
             # Определяем столбцы для экспорта
-            export_columns = ["№", "Объект", "Наименование", "Обозначение", "Место расположения", "Работы", "Дата последнего ТО"]
+            export_columns = ["№", "Объект", "Наименование", "Обозначение", "Место расположения", 
+            "Работы", "Интервал ТО (дней)", "Напоминание (за дней)", "Дата последнего ТО", "Дата следующего ТО", "Статус" ]
             
             # Обрабатываем каждый лист
             for sheet_name in self.config.SHEETS_CONFIG.keys():
@@ -226,7 +225,8 @@ class ExcelHandler:
                     
                     if sheet_data is not None and not sheet_data.empty:
                         self.logger.log(f"📝 Записываем {len(sheet_data)} записей на лист '{sheet_name}'")
-                        
+                        ws['D2'] = len(sheet_data)
+
                         # Записываем данные начиная с 5й строки
                         start_row = 5
                         record_number = 1  # Нумерация записей начинается с 1
@@ -954,6 +954,14 @@ class MaintenanceAlertApp:
         self.logger.log(f"\nОтправляем письмо {len(self.config.RECIPIENTS)} получателям...")
         if self.email_sender.send(email_body, self.config.RECIPIENTS, chart_path, maintenance_data_file):
             self.logger.log("Письма отправлены успешно")
+            
+            # Удаляем временный файл maintenance_data.xlsx после успешной отправки
+            if maintenance_data_file and maintenance_data_file.exists():
+                try:
+                    maintenance_data_file.unlink()
+                    self.logger.log(f"🗑️ Временный файл удален: {maintenance_data_file.name}")
+                except Exception as e:
+                    self.logger.log(f"⚠️ Не удалось удалить временный файл {maintenance_data_file.name}: {e}")
         else:
             self.logger.log("Не удалось отправить письма")
         self.logger.log("\n\n\n")
