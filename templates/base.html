@@ -129,9 +129,35 @@
             background-color: #cfd8dc;
             margin: 5px 0 10px 0;
         }
+        #btn-back-to-top {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: none;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background-color: #18bc9c;
+            color: white;
+            text-align: center;
+            line-height: 45px;
+            font-size: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            cursor: pointer;
+            z-index: 1000;
+            transition: opacity 0.3s, background-color 0.3s;
+            border: none;
+            outline: none;
+        }
+        #btn-back-to-top:hover {
+            background-color: #149f82;
+        }
     </style>
 </head>
 <body>
+    <button type="button" id="btn-back-to-top" title="Наверх">
+        ↑
+    </button>
     <div class="navbar">
         <div class="navbar-title">
             🔧 Обслуживание оборудования АСУТП
@@ -146,5 +172,33 @@
     <div class="container">
         {% block content %}{% endblock %}
     </div>
+
+    <script>
+        // Get the button
+        let mybutton = document.getElementById("btn-back-to-top");
+
+        // When the user scrolls down 200px from the top of the document, show the button
+        window.onscroll = function() {
+            scrollFunction();
+        };
+
+        function scrollFunction() {
+            if (document.body.scrollTop > 200 || document.documentElement.scrollTop > 200) {
+                mybutton.style.display = "block";
+            } else {
+                mybutton.style.display = "none";
+            }
+        }
+
+        // When the user clicks on the button, scroll to the top of the document
+        mybutton.addEventListener("click", backToTop);
+
+        function backToTop() {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        }
+    </script>
 </body>
 </html>

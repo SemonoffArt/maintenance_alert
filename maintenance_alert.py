@@ -684,13 +684,19 @@ class StatisticsManager:
             # Заголовок с указанием диапазона дат
             title = f'Статусы по дням ({start_date.strftime("%d.%m.%Y")} - {today.strftime("%d.%m.%Y")})'
             plt.title(title, fontsize=7, color="#2c3e50")
-            plt.legend(loc='upper left', fontsize=7)
+            plt.legend(loc='lower left', fontsize=7)
+            
+            # Устанавливаем границы так, чтобы отступы от краев были чуть больше отступов между столбцами (+2 пикселя)
+            # При ширине столбца 0.9, отступ между ними 0.1. 
+            # Добавляем еще немного к отступам от краев (примерно 0.1 в единицах данных соответствует ~2 пикселя при текущем DPI)
+            plt.xlim(-0.65, len(x) - 0.35)
+            
             plt.tight_layout()
             plt.grid(axis='y', linestyle='--', linewidth=0.5, alpha=0.7)
             # Сохраняем диаграмму
             self.config.DATA_DIR.mkdir(parents=True, exist_ok=True)
             chart_path = self.config.DATA_DIR / 'maintenance_status_62days.png'
-            plt.savefig(chart_path, dpi=150)
+            plt.savefig(chart_path, dpi=150, bbox_inches='tight', pad_inches=0.05)
             plt.close()
             return chart_path
         except Exception as e:
