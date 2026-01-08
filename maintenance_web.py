@@ -51,6 +51,8 @@ def dashboard():
     object_filter = request.args.get("object", "all")
     email_status = request.args.get("email_status")
     chart_date = request.args.get("chart_date", "").strip()
+    serviced_status = request.args.get("serviced_status")
+    serviced_message = request.args.get("serviced_message", "")
     
     # Calculate offset from chart_date
     chart_offset = 0
@@ -125,6 +127,8 @@ def dashboard():
         chart_date=chart_date,
         email_status=email_status,
         recalc_success=recalc_success,
+        serviced_status=serviced_status,
+        serviced_message=serviced_message,
     )
 
 
@@ -205,6 +209,110 @@ def download_excel():
         as_attachment=True,
         download_name=config.EXCEL_FILENAME
     )
+
+
+@app.route("/mark-serviced", methods=["POST"])
+def mark_serviced():
+    """
+    Отмечает оборудование как обслуженное, обновляя дату последнего ТО в Excel файле.
+    Принимает параметры: sheet_name (название листа) и designation (обозначение оборудования)
+    """
+    sheet_name = request.form.get("sheet_name", "").strip()
+    designation = request.form.get("designation", "").strip()
+    
+    # Preserve current filters
+    object_filter = request.form.get("object", "all")
+    status_filter = request.form.get("status", "all")
+    designation_filter = request.form.get("designation_filter", "")
+    
+    if not sheet_name or not designation:
+        return redirect(url_for("dashboard", 
+                               object=object_filter,
+                               status=status_filter, 
+                               designation=designation_filter,
+                               serviced_status="missing_params"))
+    
+    success, message = excel_handler.mark_as_serviced(sheet_name, designation)
+    
+    status_param = "success" if success else "error"
+    
+    return redirect(url_for("dashboard", 
+                           object=object_filter,
+                           status=status_filter,
+                           designation=designation_filter,
+                           serviced_status=status_param,
+                           serviced_message=message))
+
+
+@app.route("/mark-bulk-serviced", methods=["POST"])
+def mark_bulk_serviced():
+    """
+    Отмечает несколько единиц оборудования как обслуженное.
+    Принимает JSON-массив items с объектами {sheet_name, designation}
+    """
+    import json
+    
+    items_json = request.form.get("items", "[]")
+    object_filter = request.form.get("object", "all")
+    status_filter = request.form.get("status", "all")
+    designation_filter = request.form.get("designation_filter", "")
+    
+    try:
+        items = json.loads(items_json)
+    except json.JSONDecodeError:
+        return redirect(url_for("dashboard",
+                               object=object_filter,
+                               status=status_filter,
+                               designation=designation_filter,
+                               serviced_status="error",
+                               serviced_message="Ошибка обработки данных"))
+    
+    if not items:
+        return redirect(url_for("dashboard",
+                               object=object_filter,
+                               status=status_filter,
+                               designation=designation_filter,
+                               serviced_status="error",
+                               serviced_message="Не выбрано оборудование"))
+    
+    success_count = 0
+    error_count = 0
+    errors = []
+    
+    for item in items:
+        sheet_name = item.get("sheet_name", "").strip()
+        designation = item.get("designation", "").strip()
+        
+        if not sheet_name or not designation:
+            error_count += 1
+            errors.append(f"Пропущено: неполные данные")
+            continue
+        
+        success, message = excel_handler.mark_as_serviced(sheet_name, designation)
+        
+        if success:
+            success_count += 1
+        else:
+            error_count += 1
+            errors.append(f"{designation}: {message}")
+    
+    # Prepare result message
+    if error_count == 0:
+        status_param = "success"
+        result_message = f"Успешно обслужено: {success_count} ед. оборудования"
+    elif success_count == 0:
+        status_param = "error"
+        result_message = f"Ошибка обслуживания всех {error_count} ед. оборудования. " + "; ".join(errors[:3])
+    else:
+        status_param = "success"
+        result_message = f"Обслужено: {success_count} ед., ошибок: {error_count} ед."
+    
+    return redirect(url_for("dashboard",
+                           object=object_filter,
+                           status=status_filter,
+                           designation=designation_filter,
+                           serviced_status=status_param,
+                           serviced_message=result_message))
 
 
 if __name__ == "__main__":

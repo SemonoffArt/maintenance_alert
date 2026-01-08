@@ -19,6 +19,28 @@
 </div>
 {% endif %}
 
+{% if serviced_status == "success" %}
+<div class="card" style="background-color: #18bc9c; border-left: 5px solid #16a085; color: white;">
+    <div style="display:flex; align-items:center;">
+        <div style="margin-right:15px; font-size:32px;">✅</div>
+        <div>
+            <div style="font-weight:bold; margin-bottom:5px;">✅ Успешно обслужено!</div>
+            <div>{{ serviced_message }}</div>
+        </div>
+    </div>
+</div>
+{% elif serviced_status == "error" %}
+<div class="card" style="background-color: #ff6b6b; border-left: 5px solid #e74c3c; color: white;">
+    <div style="display:flex; align-items:center;">
+        <div style="margin-right:15px; font-size:32px;">❌</div>
+        <div>
+            <div style="font-weight:bold; margin-bottom:5px;">❌ Ошибка при обновлении</div>
+            <div>{{ serviced_message }}</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="card" style="background-color: #2c3e50; border-left: 4px solid #18bc9c; color: white;">
     <div style="display:flex; flex-wrap:wrap; align-items:center;">
         <div style="margin-right:20px;">
@@ -228,10 +250,30 @@
         </div>
         <hr class="section-separator" style="background-color:#e74c3c;">
         {% for item in urgent_items %}
-            <div style="background-color: {{ loop.cycle('#F9FCFF', '#ffffff') }}; margin-left:0; padding:10px 10px 10px 25px;">
+            <div style="background-color: {{ loop.cycle('#F9FCFF', '#ffffff') }}; margin-left:0; padding:10px 10px 10px 10px; position:relative;">
                 {{ item.html|safe }}
+                <div style="position:absolute; top:10px; right:10px; display:flex; align-items:center; gap:10px;">
+                    <input type="checkbox" class="equipment-checkbox urgent-checkbox" 
+                           data-sheet="{{ item.type }}" 
+                           data-designation="{{ item.designation }}" 
+                           style="width:18px; height:18px; cursor:pointer;"
+                           title="Выбрать для групповой обработки">
+                    <form method="post" action="{{ url_for('mark_serviced') }}" style="margin:0;" onsubmit="return confirm('Отметить оборудование «{{ item.designation }}» как обслуженное?');">
+                        <input type="hidden" name="sheet_name" value="{{ item.type }}">
+                        <input type="hidden" name="designation" value="{{ item.designation }}">
+                        <input type="hidden" name="object" value="{{ object_filter }}">
+                        <input type="hidden" name="status" value="{{ status_filter }}">
+                        <input type="hidden" name="designation_filter" value="{{ designation_filter }}">
+                        <button type="submit" class="btn btn-primary" style="padding:4px 12px; font-size:12px; background-color:#18bc9c; border:none;">✅ Обслужено</button>
+                    </form>
+                </div>
             </div>
         {% endfor %}
+        <div style="padding:15px; text-align:right; background-color:#f8f9fa; border-top:2px solid #e74c3c;">
+            <button type="button" id="bulk-serviced-urgent-btn" class="btn btn-danger" style="padding:8px 20px; font-size:14px; font-weight:bold;">
+                ✅ Обслужено всё выбранное
+            </button>
+        </div>
     {% else %}
         <div class="section-title" style="color:#18bc9c;">
             Нет срочных работ.
@@ -246,10 +288,30 @@
         </div>
         <hr class="section-separator" style="background-color:#f39c12;">
         {% for item in warning_items %}
-            <div style="background-color: {{ loop.cycle('#F9FCFF', '#ffffff') }}; margin-left:0; padding:10px 10px 10px 25px;">
+            <div style="background-color: {{ loop.cycle('#F9FCFF', '#ffffff') }}; margin-left:0; padding:10px 10px 10px 10px; position:relative;">
                 {{ item.html|safe }}
+                <div style="position:absolute; top:10px; right:10px; display:flex; align-items:center; gap:10px;">
+                    <input type="checkbox" class="equipment-checkbox warning-checkbox" 
+                           data-sheet="{{ item.type }}" 
+                           data-designation="{{ item.designation }}" 
+                           style="width:18px; height:18px; cursor:pointer;"
+                           title="Выбрать для групповой обработки">
+                    <form method="post" action="{{ url_for('mark_serviced') }}" style="margin:0;" onsubmit="return confirm('Отметить оборудование «{{ item.designation }}» как обслуженное?');">
+                        <input type="hidden" name="sheet_name" value="{{ item.type }}">
+                        <input type="hidden" name="designation" value="{{ item.designation }}">
+                        <input type="hidden" name="object" value="{{ object_filter }}">
+                        <input type="hidden" name="status" value="{{ status_filter }}">
+                        <input type="hidden" name="designation_filter" value="{{ designation_filter }}">
+                        <button type="submit" class="btn btn-primary" style="padding:4px 12px; font-size:12px; background-color:#18bc9c; border:none;">✅ Обслужено</button>
+                    </form>
+                </div>
             </div>
         {% endfor %}
+        <div style="padding:15px; text-align:right; background-color:#f8f9fa; border-top:2px solid #f39c12;">
+            <button type="button" id="bulk-serviced-warning-btn" class="btn btn-primary" style="padding:8px 20px; font-size:14px; font-weight:bold; background-color:#f39c12; border:none;">
+                ✅ Обслужено всё выбранное
+            </button>
+        </div>
     {% else %}
         <div class="section-title">
             Нет приближающихся работ.
@@ -277,5 +339,84 @@
         {{ config.RECIPIENTS | join(', ') }}
     </div>
 </div>
+
+<script>
+// Bulk serviced action for selected equipment
+(function() {
+    const bulkUrgentBtn = document.getElementById('bulk-serviced-urgent-btn');
+    const bulkWarningBtn = document.getElementById('bulk-serviced-warning-btn');
+    
+    function processBulkServiced(checkboxClass, listType) {
+        const checkboxes = document.querySelectorAll('.' + checkboxClass + ':checked');
+        
+        if (checkboxes.length === 0) {
+            alert('Выберите хотя бы одно оборудование для обслуживания.');
+            return;
+        }
+        
+        const count = checkboxes.length;
+        const confirmMsg = 'Отметить ' + count + ' ед. оборудования как обслуженное?';
+        
+        if (!confirm(confirmMsg)) {
+            return;
+        }
+        
+        // Collect all selected items
+        const items = [];
+        checkboxes.forEach(function(checkbox) {
+            items.push({
+                sheet_name: checkbox.getAttribute('data-sheet'),
+                designation: checkbox.getAttribute('data-designation')
+            });
+        });
+        
+        // Create form and submit
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{{ url_for("mark_bulk_serviced") }}';
+        
+        // Add items as JSON
+        const itemsInput = document.createElement('input');
+        itemsInput.type = 'hidden';
+        itemsInput.name = 'items';
+        itemsInput.value = JSON.stringify(items);
+        form.appendChild(itemsInput);
+        
+        // Preserve filters
+        const objectInput = document.createElement('input');
+        objectInput.type = 'hidden';
+        objectInput.name = 'object';
+        objectInput.value = '{{ object_filter }}';
+        form.appendChild(objectInput);
+        
+        const statusInput = document.createElement('input');
+        statusInput.type = 'hidden';
+        statusInput.name = 'status';
+        statusInput.value = '{{ status_filter }}';
+        form.appendChild(statusInput);
+        
+        const designationInput = document.createElement('input');
+        designationInput.type = 'hidden';
+        designationInput.name = 'designation_filter';
+        designationInput.value = '{{ designation_filter }}';
+        form.appendChild(designationInput);
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+    
+    if (bulkUrgentBtn) {
+        bulkUrgentBtn.addEventListener('click', function() {
+            processBulkServiced('urgent-checkbox', 'срочное');
+        });
+    }
+    
+    if (bulkWarningBtn) {
+        bulkWarningBtn.addEventListener('click', function() {
+            processBulkServiced('warning-checkbox', 'предупреждение');
+        });
+    }
+})();
+</script>
 
 {% endblock %}
