@@ -370,21 +370,18 @@ class ExcelHandler:
             self.logger.log(f"⚠️ {msg}")
             return False, msg
 
-    def mark_as_serviced(self, sheet_name: str, designation: str, make_backup: bool = True) -> Tuple[bool, str]:
+    def mark_as_serviced(self, sheet_name: str, row_number: str, make_backup: bool = True) -> Tuple[bool, str]:
         """
         Отмечает оборудование как обслуженное, обновляя дату последнего ТО.
         
         Args:
             sheet_name: Название листа Excel ("ПК АСУ ТП" или "Шкафы АСУ ТП")
-            designation: Обозначение оборудования для поиска записи
+            row_number: Номер строки из колонки № (колонка A) для поиска записи
             make_backup: Нужно ли создавать резервную копию перед изменением
             
         Returns:
             Tuple[bool, str]: (успех операции, сообщение)
         """
-        if not self.xlwings_available:
-            return False, "xlwings недоступен. Невозможно обновить Excel файл."
-            
         file_path = self.config.get_excel_file_path()
         if not file_path.exists():
             return False, f"Файл не найден: {file_path}"
@@ -398,55 +395,62 @@ class ExcelHandler:
             self.create_backup(file_path)
             
         try:
-            self.logger.log(f"📝 Отмечаем как обслуженное: {sheet_name} / {designation}")
+            self.logger.log(f"📝 Отмечаем как обслуженное: {sheet_name} / №{row_number}")
             
-            # Открываем Excel файл
-            with self.xw.App(visible=False, add_book=False) as app:
-                wb = app.books.open(str(file_path))
+            # Открываем Excel файл с помощью openpyxl
+            wb = load_workbook(str(file_path))
+            
+            try:
+                # Проверяем наличие листа
+                if sheet_name not in wb.sheetnames:
+                    return False, f"Лист '{sheet_name}' не найден в файле"
+                
+                sheet = wb[sheet_name]
+                
+                # Ищем строку с нужным номером в колонке A (№)
+                # Колонка A (№) - индекс 1
+                # Колонка I (Дата последнего ТО) - индекс 9
+                start_row = 5  # Данные начинаются со строки 5 (строка 4 - заголовки)
+                max_rows = 500
+                found_row = None
+                
+                # Преобразуем row_number в число для сравнения
                 try:
-                    # Проверяем наличие листа
-                    if sheet_name not in [sheet.name for sheet in wb.sheets]:
-                        return False, f"Лист '{sheet_name}' не найден в файле"
-                    
-                    sheet = wb.sheets[sheet_name]
-                    
-                    # Находим диапазон данных (начиная со строки 4)
-                    # Колонки: 0-№, 1-Объект, 2-Наименование, 3-Обозначение, ..., 8-Дата последнего ТО
-                    designation_col = 4  # Колонка D (Обозначение) - индекс 3, но в Excel это колонка 4
-                    last_maintenance_col = 9  # Колонка I (Дата последнего ТО) - индекс 8, но в Excel это колонка 9
-                    
-                    # Ищем строку с нужным обозначением
-                    start_row = 5  # Данные начинаются со строки 5 (строка 4 - заголовки)
-                    max_rows = 500
-                    found_row = None
-                    
-                    for row_idx in range(start_row, start_row + max_rows):
-                        cell_value = sheet.range(f"D{row_idx}").value
-                        if cell_value and str(cell_value).strip() == str(designation).strip():
-                            found_row = row_idx
-                            break
-                    
-                    if found_row is None:
-                        return False, f"Оборудование с обозначением '{designation}' не найдено на листе '{sheet_name}'"
-                    
-                    # Обновляем дату последнего ТО
-                    today = datetime.now()
-                    sheet.range(f"I{found_row}").value = today
-                    
-                    # Пересчитываем формулы
-                    app.calculation = 'automatic'
-                    wb.app.calculate()
-                    sheet.api.Calculate()
-                    
-                    # Сохраняем файл
-                    wb.save()
-                    
-                    self.logger.log(f"✅ Успешно обновлена дата ТО для '{designation}' в строке {found_row}")
-                    return True, f"Оборудование '{designation}' отмечено как обслуженное"
-                    
-                finally:
-                    wb.close()
-                    
+                    target_number = int(row_number)
+                except ValueError:
+                    return False, f"Некорректный номер строки: '{row_number}'"
+                
+                for row_idx in range(start_row, start_row + max_rows):
+                    cell_value = sheet.cell(row=row_idx, column=1).value  # Колонка A (№)
+                    if cell_value is not None:
+                        try:
+                            # Преобразуем значение ячейки в число
+                            cell_number = int(float(cell_value))
+                            if cell_number == target_number:
+                                found_row = row_idx
+                                break
+                        except (ValueError, TypeError):
+                            continue
+                
+                if found_row is None:
+                    return False, f"Оборудование с номером '№{row_number}' не найдено на листе '{sheet_name}'"
+                
+                # Получаем обозначение для лога (колонка D = 4)
+                designation = sheet.cell(row=found_row, column=4).value or "N/A"
+                
+                # Обновляем дату последнего ТО (колонка I = 9)
+                today = datetime.now()
+                sheet.cell(row=found_row, column=9).value = today
+                
+                # Сохраняем файл
+                wb.save(str(file_path))
+                
+                self.logger.log(f"✅ Успешно обновлена дата ТО для '№{row_number} ({designation})' в строке {found_row}")
+                return True, f"Оборудование '№{row_number} ({designation})' отмечено как обслуженное"
+                
+            finally:
+                wb.close()
+                
         except Exception as e:
             error_msg = f"Ошибка при обновлении: {str(e)}"
             self.logger.log(f"❌ {error_msg}")

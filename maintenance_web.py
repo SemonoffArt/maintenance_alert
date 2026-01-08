@@ -31,12 +31,14 @@ def _build_items_list(dfs, status_label: str):
             item_type = row.get("Тип", "")
             designation = row.get("Обозначение", "")
             object_name = row.get("Объект", "")
+            row_number = row.get("№", "")  # Get the unique row number from column A
             items.append(
                 {
                     "type": item_type,
                     "status": status_label,
                     "designation": designation,
                     "object": object_name,
+                    "row_number": row_number,
                     "html": maintenance_checker.format_item_info(row, item_type),
                 }
             )
@@ -98,6 +100,15 @@ def dashboard():
 
     filtered_urgent = apply_filters(urgent_list) if show_urgent else []
     filtered_warning = apply_filters(warning_list) if show_warning else []
+
+    # Reset filters if no records match after a servicing action
+    if serviced_status and not filtered_urgent and not filtered_warning:
+        has_active_filters = (sheet_type != "all" or status_filter != "all" or 
+                             designation_filter != "" or object_filter != "all")
+        if has_active_filters:
+            return redirect(url_for("dashboard", 
+                                   serviced_status=serviced_status,
+                                   serviced_message=serviced_message))
 
     filtered_urgent_count = len(filtered_urgent)
     filtered_warning_count = len(filtered_warning)
@@ -218,24 +229,24 @@ def download_excel():
 def mark_serviced():
     """
     Отмечает оборудование как обслуженное, обновляя дату последнего ТО в Excel файле.
-    Принимает параметры: sheet_name (название листа) и designation (обозначение оборудования)
+    Принимает параметры: sheet_name (название листа) и row_number (номер строки из колонки №)
     """
     sheet_name = request.form.get("sheet_name", "").strip()
-    designation = request.form.get("designation", "").strip()
+    row_number = request.form.get("row_number", "").strip()
     
     # Preserve current filters
     object_filter = request.form.get("object", "all")
     status_filter = request.form.get("status", "all")
     designation_filter = request.form.get("designation_filter", "")
     
-    if not sheet_name or not designation:
+    if not sheet_name or not row_number:
         return redirect(url_for("dashboard", 
                                object=object_filter,
                                status=status_filter, 
                                designation=designation_filter,
                                serviced_status="missing_params"))
     
-    success, message = excel_handler.mark_as_serviced(sheet_name, designation)
+    success, message = excel_handler.mark_as_serviced(sheet_name, row_number)
     
     status_param = "success" if success else "error"
     
@@ -296,14 +307,14 @@ def mark_bulk_serviced():
     
     for item in items:
         sheet_name = item.get("sheet_name", "").strip()
-        designation = item.get("designation", "").strip()
+        row_number = item.get("row_number", "").strip()
         
-        if not sheet_name or not designation:
+        if not sheet_name or not row_number:
             error_count += 1
             errors.append(f"Пропущено: неполные данные")
             continue
         
-        success, message = excel_handler.mark_as_serviced(sheet_name, designation, make_backup=False)
+        success, message = excel_handler.mark_as_serviced(sheet_name, row_number, make_backup=False)
         
         if success:
             success_count += 1
