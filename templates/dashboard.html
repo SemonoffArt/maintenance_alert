@@ -71,11 +71,12 @@
     <div class="filters-row">
         <form method="get" action="{{ url_for('dashboard') }}" style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
             <div>
-                <label for="sheet_type" style="font-size:13px; margin-right:4px;">Тип:</label>
-                <select name="sheet_type" id="sheet_type">
-                    <option value="all" {% if sheet_type == "all" %}selected{% endif %}>Все</option>
-                    <option value="ПК АСУ ТП" {% if sheet_type == "ПК АСУ ТП" %}selected{% endif %}>ПК АСУ ТП</option>
-                    <option value="Шкафы АСУ ТП" {% if sheet_type == "Шкафы АСУ ТП" %}selected{% endif %}>Шкафы АСУ ТП</option>
+                <label for="object" style="font-size:13px; margin-right:4px;">Объект:</label>
+                <select name="object" id="object">
+                    <option value="all" {% if object_filter == "all" %}selected{% endif %}>Все</option>
+                    {% for obj in unique_objects %}
+                        <option value="{{ obj }}" {% if object_filter == obj %}selected{% endif %}>{{ obj }}</option>
+                    {% endfor %}
                 </select>
             </div>
             <div>
@@ -87,13 +88,17 @@
                 </select>
             </div>
             <div>
+                <label for="designation" style="font-size:13px; margin-right:4px;">Обозначение:</label>
+                <input type="text" name="designation" id="designation" value="{{ designation_filter }}" placeholder="Поиск..." style="padding:4px 8px; border-radius:4px; border:1px solid #cfd8dc; font-size:13px; width:150px;">
+            </div>
+            <div>
                 <button type="submit" class="btn btn-primary">Применить фильтры</button>
             </div>
         </form>
 
         <form method="post" action="{{ url_for('send_email') }}" style="margin-left:auto;">
             <button type="submit" class="btn btn-danger">
-                🔔 Отправить письмо сейчас
+                🔔 Отправить письмо
             </button>
         </form>
     </div>

@@ -29,10 +29,14 @@ def _build_items_list(dfs, status_label: str):
     for df in dfs:
         for _, row in df.iterrows():
             item_type = row.get("Тип", "")
+            designation = row.get("Обозначение", "")
+            object_name = row.get("Объект", "")
             items.append(
                 {
                     "type": item_type,
                     "status": status_label,
+                    "designation": designation,
+                    "object": object_name,
                     "html": maintenance_checker.format_item_info(row, item_type),
                 }
             )
@@ -43,6 +47,8 @@ def _build_items_list(dfs, status_label: str):
 def dashboard():
     sheet_type = request.args.get("sheet_type", "all")
     status_filter = request.args.get("status", "all")
+    designation_filter = request.args.get("designation", "").strip()
+    object_filter = request.args.get("object", "all")
     email_status = request.args.get("email_status")
 
     urgent_items, warning_items, total_records, status_counts, recalc_success = excel_handler.read_data()
@@ -50,9 +56,18 @@ def dashboard():
     urgent_list = _build_items_list(urgent_items, "urgent")
     warning_list = _build_items_list(warning_items, "warning")
 
+    # Collect unique objects for dropdown
+    all_items = urgent_list + warning_list
+    unique_objects = sorted(set(item.get("object", "") for item in all_items if item.get("object")))
+
     def apply_filters(items):
         if sheet_type != "all":
             items = [i for i in items if i["type"] == sheet_type]
+        if designation_filter:
+            # Filter by designation - case insensitive substring match
+            items = [i for i in items if designation_filter.lower() in str(i.get("designation", "")).lower()]
+        if object_filter != "all":
+            items = [i for i in items if i.get("object") == object_filter]
         return items
 
     show_urgent = status_filter in ("all", "urgent")
@@ -79,6 +94,9 @@ def dashboard():
         total_warning=total_warning,
         sheet_type=sheet_type,
         status_filter=status_filter,
+        designation_filter=designation_filter,
+        object_filter=object_filter,
+        unique_objects=unique_objects,
         email_status=email_status,
         recalc_success=recalc_success,
     )
