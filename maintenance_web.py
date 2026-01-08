@@ -50,6 +50,12 @@ def dashboard():
     designation_filter = request.args.get("designation", "").strip()
     object_filter = request.args.get("object", "all")
     email_status = request.args.get("email_status")
+    chart_offset = request.args.get("chart_offset", "0")
+    
+    try:
+        chart_offset = int(chart_offset)
+    except ValueError:
+        chart_offset = 0
 
     urgent_items, warning_items, total_records, status_counts, recalc_success = excel_handler.read_data()
 
@@ -97,6 +103,7 @@ def dashboard():
         designation_filter=designation_filter,
         object_filter=object_filter,
         unique_objects=unique_objects,
+        chart_offset=chart_offset,
         email_status=email_status,
         recalc_success=recalc_success,
     )
@@ -115,7 +122,13 @@ def settings():
 
 @app.route("/chart.png")
 def chart_png():
-    chart_path = statistics_manager.create_chart()
+    offset_days = request.args.get("offset", "0")
+    try:
+        offset_days = int(offset_days)
+    except ValueError:
+        offset_days = 0
+    
+    chart_path = statistics_manager.create_chart(offset_days=offset_days)
     if not chart_path or not Path(chart_path).exists():
         return ("Диаграмма недоступна", 404)
     return send_file(chart_path, mimetype="image/png")

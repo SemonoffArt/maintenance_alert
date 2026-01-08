@@ -104,7 +104,12 @@
     </div>
 
     <div style="margin-top:10px;">
-        <img src="{{ url_for('chart_png') }}" alt="Диаграмма статусов" style="max-width:100%; border-radius:6px;">
+        <img src="{{ url_for('chart_png') }}?offset={{ chart_offset }}" alt="Диаграмма статусов" style="max-width:100%; border-radius:6px;">
+        <div style="display:flex; align-items:center; gap:10px; margin-top:8px;">
+            <a href="?object={{ object_filter }}&status={{ status_filter }}&designation={{ designation_filter }}&chart_offset={{ chart_offset - 7 }}" class="btn btn-primary" style="text-decoration:none; padding:6px 12px;">← Назад</a>
+            <a href="?object={{ object_filter }}&status={{ status_filter }}&designation={{ designation_filter }}&chart_offset=0" class="btn btn-primary" style="text-decoration:none; padding:6px 12px;">📅 Сегодня</a>
+            <a href="?object={{ object_filter }}&status={{ status_filter }}&designation={{ designation_filter }}&chart_offset={{ chart_offset + 7 }}" class="btn btn-primary" style="text-decoration:none; padding:6px 12px;">Вперёд →</a>
+        </div>
     </div>
 </div>
 

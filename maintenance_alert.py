@@ -628,13 +628,17 @@ class StatisticsManager:
                         ha='center', va='center', rotation=90, fontsize=6, color='white'
                     )
 
-    def create_chart(self) -> Optional[Path]:
-        """Создает диаграмму статусов обслуживания."""
+    def create_chart(self, offset_days: int = 0) -> Optional[Path]:
+        """Создает диаграмму статусов обслуживания.
+        
+        Args:
+            offset_days: Смещение в днях от текущей даты (отрицательное = назад, положительное = вперед)
+        """
         try:
             config = self.load_config()
             if not config['maintenance_history']:
                 return None
-            today = datetime.now().date()
+            today = datetime.now().date() + timedelta(days=offset_days)
             start_date = today - timedelta(days=61)
             # Собираем значения за каждый день диапазона
             date_to_vals = {}
@@ -676,7 +680,10 @@ class StatisticsManager:
             tick_labels = [labels[i] for i in tick_positions]
             plt.xticks(tick_positions, tick_labels, rotation=45, ha='right', fontsize=6, color="#2c3e50")
             plt.yticks(fontsize=6, color="#2c3e50")
-            plt.title('Статусы по дням (последние 62 дня)', fontsize=7, color="#2c3e50")
+            
+            # Заголовок с указанием диапазона дат
+            title = f'Статусы по дням ({start_date.strftime("%d.%m.%Y")} - {today.strftime("%d.%m.%Y")})'
+            plt.title(title, fontsize=7, color="#2c3e50")
             plt.legend(loc='upper left', fontsize=7)
             plt.tight_layout()
             plt.grid(axis='y', linestyle='--', linewidth=0.5, alpha=0.7)
