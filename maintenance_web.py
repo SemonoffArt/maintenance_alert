@@ -183,6 +183,24 @@ def send_email():
     return redirect(url_for("dashboard", email_status=status))
 
 
+@app.route("/download-excel")
+def download_excel():
+    # File is usually in TMP_DIR after recalculation
+    file_path = config.TMP_DIR / config.EXCEL_FILENAME
+    if not file_path.exists():
+        # Fallback to original file if tmp doesn't exist
+        file_path = config.get_excel_file_path()
+        
+    if not file_path.exists():
+        return ("Файл не найден", 404)
+        
+    return send_file(
+        file_path,
+        as_attachment=True,
+        download_name=config.EXCEL_FILENAME
+    )
+
+
 if __name__ == "__main__":
     # For production you will likely set host/port and disable debug,
     # but this is fine for local testing.
