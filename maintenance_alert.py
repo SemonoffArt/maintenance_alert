@@ -10,6 +10,7 @@ from email import encoders
 from pathlib import Path
 import sys
 import json
+import shutil
 import matplotlib
 matplotlib.use('Agg')  # Use non-GUI backend for thread safety
 import matplotlib.pyplot as plt
@@ -26,6 +27,7 @@ class Config:
     PROGRAM_DIR = Path(__file__).parent.absolute()
     DATA_DIR = PROGRAM_DIR / "data"
     TMP_DIR = PROGRAM_DIR / "tmp"
+    BACKUP_DIR = PROGRAM_DIR / "backups_excel"
     LOG_FILE = DATA_DIR / "maintenance_alert.log"
 
     EXCEL_FILENAME = "Обслуживание ПК и шкафов АСУТП.xlsx"
@@ -329,13 +331,53 @@ class ExcelHandler:
 
         return urgent_items, warning_items, total_records, status_counts, recalc_success
 
-    def mark_as_serviced(self, sheet_name: str, designation: str) -> Tuple[bool, str]:
+    def is_file_locked(self, file_path: Path) -> bool:
+        """
+        Проверяет, заблокирован ли файл другим приложением (открыт в Excel).
+        На Windows это делается попыткой переименовать файл.
+        """
+        if not file_path.exists():
+            return False
+        try:
+            # Попытка открыть файл в эксклюзивном режиме для записи
+            # Если файл открыт в Excel, это вызовет PermissionError
+            f = open(file_path, 'a')
+            f.close()
+            return False
+        except (IOError, PermissionError):
+            return True
+
+    def create_backup(self, file_path: Path) -> Tuple[bool, str]:
+        """
+        Создает резервную копию файла в папке backups_excel.
+        Добавляет к имени файла текущую дату и время.
+        """
+        try:
+            if not file_path.exists():
+                return False, "Исходный файл не найден"
+            
+            self.config.BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+            
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            backup_filename = f"{file_path.stem}_{timestamp}{file_path.suffix}"
+            backup_path = self.config.BACKUP_DIR / backup_filename
+            
+            shutil.copy2(file_path, backup_path)
+            self.logger.log(f"💾 Резервная копия создана: {backup_path.name}")
+            return True, str(backup_path)
+        except Exception as e:
+            msg = f"Ошибка при создании резервной копии: {e}"
+            self.logger.log(f"⚠️ {msg}")
+            return False, msg
+
+    def mark_as_serviced(self, sheet_name: str, designation: str, make_backup: bool = True) -> Tuple[bool, str]:
         """
         Отмечает оборудование как обслуженное, обновляя дату последнего ТО.
         
         Args:
             sheet_name: Название листа Excel ("ПК АСУ ТП" или "Шкафы АСУ ТП")
             designation: Обозначение оборудования для поиска записи
+            make_backup: Нужно ли создавать резервную копию перед изменением
             
         Returns:
             Tuple[bool, str]: (успех операции, сообщение)
@@ -346,6 +388,14 @@ class ExcelHandler:
         file_path = self.config.get_excel_file_path()
         if not file_path.exists():
             return False, f"Файл не найден: {file_path}"
+            
+        # Проверка на блокировку файла перед началом работы
+        if self.is_file_locked(file_path):
+            return False, "⚠️ Файл Excel открыт в другой программе! Закройте его перед выполнением операции."
+            
+        # Создание резервной копии перед изменением
+        if make_backup:
+            self.create_backup(file_path)
             
         try:
             self.logger.log(f"📝 Отмечаем как обслуженное: {sheet_name} / {designation}")

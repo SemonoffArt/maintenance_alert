@@ -73,6 +73,9 @@ def dashboard():
 
     urgent_items, warning_items, total_records, status_counts, recalc_success = excel_handler.read_data()
 
+    # Update statistics automatically on dashboard load
+    statistics_manager.update_statistics(urgent_items, warning_items, total_records, status_counts)
+
     urgent_list = _build_items_list(urgent_items, "urgent")
     warning_list = _build_items_list(warning_items, "warning")
 
@@ -275,6 +278,18 @@ def mark_bulk_serviced():
                                serviced_status="error",
                                serviced_message="Не выбрано оборудование"))
     
+    # Check if file is locked and create one backup for the whole bulk operation
+    file_path = config.get_excel_file_path()
+    if excel_handler.is_file_locked(file_path):
+        return redirect(url_for("dashboard",
+                               object=object_filter,
+                               status=status_filter,
+                               designation=designation_filter,
+                               serviced_status="error",
+                               serviced_message="⚠️ Файл Excel открыт в другой программе! Закройте его."))
+                               
+    excel_handler.create_backup(file_path)
+    
     success_count = 0
     error_count = 0
     errors = []
@@ -288,7 +303,7 @@ def mark_bulk_serviced():
             errors.append(f"Пропущено: неполные данные")
             continue
         
-        success, message = excel_handler.mark_as_serviced(sheet_name, designation)
+        success, message = excel_handler.mark_as_serviced(sheet_name, designation, make_backup=False)
         
         if success:
             success_count += 1

@@ -256,7 +256,7 @@
                     <input type="checkbox" class="equipment-checkbox urgent-checkbox" 
                            data-sheet="{{ item.type }}" 
                            data-designation="{{ item.designation }}" 
-                           style="width:18px; height:18px; cursor:pointer;"
+                           style="width:18px; height:18px; cursor:pointer; accent-color: #e74c3c;"
                            title="Выбрать для групповой обработки">
                     <form method="post" action="{{ url_for('mark_serviced') }}" style="margin:0;" onsubmit="return confirm('Отметить оборудование «{{ item.designation }}» как обслуженное?');">
                         <input type="hidden" name="sheet_name" value="{{ item.type }}">
@@ -294,7 +294,7 @@
                     <input type="checkbox" class="equipment-checkbox warning-checkbox" 
                            data-sheet="{{ item.type }}" 
                            data-designation="{{ item.designation }}" 
-                           style="width:18px; height:18px; cursor:pointer;"
+                           style="width:18px; height:18px; cursor:pointer; accent-color: #f39c12;"
                            title="Выбрать для групповой обработки">
                     <form method="post" action="{{ url_for('mark_serviced') }}" style="margin:0;" onsubmit="return confirm('Отметить оборудование «{{ item.designation }}» как обслуженное?');">
                         <input type="hidden" name="sheet_name" value="{{ item.type }}">
