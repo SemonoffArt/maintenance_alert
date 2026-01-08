@@ -53,6 +53,8 @@ class Config:
     STATUS_URGENT = "ОБСЛУЖИТЬ"
     STATUS_WARNING = "Внимание"
     STATUS_OK = "Не требуется"
+    
+    CHART_DAYS = 62  # Количество дней отображаемых в диаграмме
 
     @classmethod
     def get_excel_file_path(cls) -> Path:
@@ -639,7 +641,7 @@ class StatisticsManager:
             if not config['maintenance_history']:
                 return None
             today = datetime.now().date() + timedelta(days=offset_days)
-            start_date = today - timedelta(days=61)
+            start_date = today - timedelta(days=self.config.CHART_DAYS - 1)
             # Собираем значения за каждый день диапазона
             date_to_vals = {}
             for rec in config['maintenance_history']:
@@ -651,7 +653,7 @@ class StatisticsManager:
                         rec.get('warning', 0),
                     )
             # Подготавливаем данные для графика
-            days_sorted = [start_date + timedelta(days=i) for i in range(62)]
+            days_sorted = [start_date + timedelta(days=i) for i in range(self.config.CHART_DAYS)]
             ok_vals = [date_to_vals.get(d, (0, 0, 0))[0] for d in days_sorted]
             urgent_vals = [date_to_vals.get(d, (0, 0, 0))[1] for d in days_sorted]
             warning_vals = [date_to_vals.get(d, (0, 0, 0))[2] for d in days_sorted]
@@ -695,7 +697,7 @@ class StatisticsManager:
             plt.grid(axis='y', linestyle='--', linewidth=0.5, alpha=0.7)
             # Сохраняем диаграмму
             self.config.DATA_DIR.mkdir(parents=True, exist_ok=True)
-            chart_path = self.config.DATA_DIR / 'maintenance_status_62days.png'
+            chart_path = self.config.DATA_DIR / 'maintenance_status_chart.png'
             plt.savefig(chart_path, dpi=150, bbox_inches='tight', pad_inches=0.05)
             plt.close()
             return chart_path
