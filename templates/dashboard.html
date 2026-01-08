@@ -60,20 +60,115 @@
 
 <div class="card">
     <div style="margin-top:10px;">
-        <img src="{{ url_for('chart_png') }}?offset={{ chart_offset }}" alt="Диаграмма статусов" style="max-width:100%; border-radius:6px;">
+        <img id="chart-image" src="{{ url_for('chart_png') }}?offset={{ chart_offset }}" alt="Диаграмма статусов" style="max-width:100%; border-radius:6px;">
         <div style="display:flex; align-items:center; gap:10px; margin-top:8px;">
-            <form method="get" action="{{ url_for('dashboard') }}" style="display:flex; align-items:center; gap:10px;">
-                <input type="hidden" name="object" value="{{ object_filter }}">
-                <input type="hidden" name="status" value="{{ status_filter }}">
-                <input type="hidden" name="designation" value="{{ designation_filter }}">
-                <label for="chart_date" style="font-size:13px; color:#2c3e50; font-weight:bold;">Дата диаграммы:</label>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <button type="button" id="prev-week-btn" class="btn btn-primary" style="padding:6px 12px;" title="Назад на 7 дней">◀ -7д</button>
+                <!-- <label for="chart_date" style="font-size:13px; color:#2c3e50; font-weight:bold;">Дата диаграммы:</label> -->
                 <input type="date" name="chart_date" id="chart_date" value="{{ chart_date }}" style="padding:6px 10px; border-radius:4px; border:1px solid #cfd8dc; font-size:13px;">
-                <button type="submit" class="btn btn-primary" style="padding:6px 12px;">📊 Построить</button>
-                <a href="?object={{ object_filter }}&status={{ status_filter }}&designation={{ designation_filter }}&chart_date=" class="btn btn-primary" style="text-decoration:none; padding:6px 12px;">📅 Сегодня</a>
-            </form>
+                <button type="button" id="next-week-btn" class="btn btn-primary" style="padding:6px 12px;" title="Вперёд на 7 дней">+7д ▶</button>
+                <button type="button" id="today-chart-btn" class="btn btn-primary" style="padding:6px 12px;">📅 Сегодня</button>
+            </div>
         </div>
     </div>
 </div>
+
+<script>
+// Dynamic chart reloading without page refresh
+(function() {
+    const chartImage = document.getElementById('chart-image');
+    const chartDateInput = document.getElementById('chart_date');
+    const todayBtn = document.getElementById('today-chart-btn');
+    const prevWeekBtn = document.getElementById('prev-week-btn');
+    const nextWeekBtn = document.getElementById('next-week-btn');
+    
+    function calculateOffset(dateStr) {
+        if (!dateStr) return 0;
+        const selectedDate = new Date(dateStr);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        selectedDate.setHours(0, 0, 0, 0);
+        const diffTime = selectedDate - today;
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays;
+    }
+    
+    function formatDate(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return year + '-' + month + '-' + day;
+    }
+    
+    function updateChart(dateStr) {
+        const offset = calculateOffset(dateStr);
+        // Add timestamp to force image reload
+        const timestamp = new Date().getTime();
+        chartImage.src = "{{ url_for('chart_png') }}?offset=" + offset + "&t=" + timestamp;
+    }
+    
+    function adjustDate(daysToAdd) {
+        const currentDate = chartDateInput.value ? new Date(chartDateInput.value) : new Date();
+        currentDate.setDate(currentDate.getDate() + daysToAdd);
+        
+        // Don't allow future dates beyond today
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        currentDate.setHours(0, 0, 0, 0);
+        
+        if (currentDate > today) {
+            currentDate.setTime(today.getTime());
+        }
+        
+        const newDateStr = formatDate(currentDate);
+        chartDateInput.value = newDateStr;
+        updateChart(newDateStr);
+    }
+    
+    // Initialize: if date picker shows a past date, update to today and reload chart
+    function initializeToToday() {
+        const currentValue = chartDateInput.value;
+        const today = new Date();
+        const todayStr = formatDate(today);
+        
+        if (currentValue !== todayStr) {
+            chartDateInput.value = todayStr;
+            updateChart(todayStr);
+        }
+    }
+    
+    // Run initialization on page load
+    initializeToToday();
+    
+    todayBtn.addEventListener('click', function() {
+        const today = new Date();
+        const todayStr = formatDate(today);
+        chartDateInput.value = todayStr;
+        updateChart(todayStr);
+    });
+    
+    prevWeekBtn.addEventListener('click', function() {
+        adjustDate(-7);
+    });
+    
+    nextWeekBtn.addEventListener('click', function() {
+        adjustDate(7);
+    });
+    
+    // Allow Enter key to rebuild chart
+    chartDateInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            updateChart(chartDateInput.value);
+        }
+    });
+    
+    // Automatically rebuild chart when date is changed
+    chartDateInput.addEventListener('change', function() {
+        updateChart(chartDateInput.value);
+    });
+})();
+</script>
 
 <div class="card">
     {% if email_status == "sent" %}
