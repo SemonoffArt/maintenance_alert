@@ -50,12 +50,24 @@ def dashboard():
     designation_filter = request.args.get("designation", "").strip()
     object_filter = request.args.get("object", "all")
     email_status = request.args.get("email_status")
-    chart_offset = request.args.get("chart_offset", "0")
+    chart_date = request.args.get("chart_date", "").strip()
     
-    try:
-        chart_offset = int(chart_offset)
-    except ValueError:
-        chart_offset = 0
+    # Calculate offset from chart_date
+    chart_offset = 0
+    if chart_date:
+        try:
+            from datetime import datetime
+            selected_date = datetime.strptime(chart_date, "%Y-%m-%d").date()
+            today = datetime.now().date()
+            chart_offset = (selected_date - today).days
+        except ValueError:
+            chart_date = ""
+            chart_offset = 0
+    
+    # If no date specified, use today's date
+    if not chart_date:
+        from datetime import datetime
+        chart_date = datetime.now().strftime("%Y-%m-%d")
 
     urgent_items, warning_items, total_records, status_counts, recalc_success = excel_handler.read_data()
 
@@ -104,6 +116,7 @@ def dashboard():
         object_filter=object_filter,
         unique_objects=unique_objects,
         chart_offset=chart_offset,
+        chart_date=chart_date,
         email_status=email_status,
         recalc_success=recalc_success,
     )
