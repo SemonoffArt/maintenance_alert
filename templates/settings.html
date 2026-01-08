@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="card">
+    <div class="section-title">⚙️ Настройки приложения (только просмотр)</div>
+    <hr class="section-separator">
+
+    <table style="width:100%; border-collapse:collapse; font-size:13px;">
+        <tr>
+            <td style="width:220px; padding:4px 8px; color:#607d8b;">Версия:</td>
+            <td style="padding:4px 8px; font-weight:bold;">{{ config.VERSION }}</td>
+        </tr>
+        <tr>
+            <td style="padding:4px 8px; color:#607d8b;">Дата выпуска:</td>
+            <td style="padding:4px 8px;">{{ config.RELEASE_DATE }}</td>
+        </tr>
+        <tr>
+            <td style="padding:4px 8px; color:#607d8b;">Каталог программы:</td>
+            <td style="padding:4px 8px;"><code>{{ config.PROGRAM_DIR }}</code></td>
+        </tr>
+        <tr>
+            <td style="padding:4px 8px; color:#607d8b;">Файл Excel:</td>
+            <td style="padding:4px 8px;"><code>{{ config.get_excel_file_path() }}</code></td>
+        </tr>
+        <tr>
+            <td style="padding:4px 8px; color:#607d8b;">Файл истории:</td>
+            <td style="padding:4px 8px;"><code>{{ config.HISTORY_FILE }}</code></td>
+        </tr>
+        <tr>
+            <td style="padding:4px 8px; color:#607d8b;">SMTP сервер:</td>
+            <td style="padding:4px 8px;">{{ config.SMTP_SERVER }}:{{ config.SMTP_PORT }}</td>
+        </tr>
+        <tr>
+            <td style="padding:4px 8px; color:#607d8b;">Отправитель:</td>
+            <td style="padding:4px 8px;">{{ config.SENDER_EMAIL }}</td>
+        </tr>
+        <tr>
+            <td style="padding:4px 8px; color:#607d8b;">Получатели:</td>
+            <td style="padding:4px 8px;">{{ config.RECIPIENTS | join(', ') }}</td>
+        </tr>
+    </table>
+</div>
+
+{% endblock %}

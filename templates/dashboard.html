@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block content %}
+
+{% if not recalc_success %}
+<div class="card" style="background-color: #ff6b6b; border-left: 5px solid #e74c3c; color: white;">
+    <div style="display:flex; align-items:center;">
+        <div style="margin-right:15px;">
+            <!-- Иконка alert, если будет подключена как статический ресурс -->
+            ⚠️
+        </div>
+        <div>
+            <div style="font-weight:bold; margin-bottom:5px;">⚠️ ВНИМАНИЕ! ТАБЛИЦА ОТКРЫТА! ⚠️</div>
+            <div>
+                Перерасчёт графика обслуживания невозможен.<br>
+                Закройте таблицу, чтобы восстановить расчёты.
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="card" style="background-color: #2c3e50; border-left: 4px solid #18bc9c; color: white;">
+    <div style="display:flex; flex-wrap:wrap; align-items:center;">
+        <div style="margin-right:20px;">
+            <img src="{{ url_for('static', filename='manky.png') }}" alt="Иконка" style="width:64px; height:64px; border-radius:8px;">
+        </div>
+        <div style="display:flex; flex-wrap:wrap; justify-content:space-around; text-align:center; align-items:center; flex:1;">
+            <div style="margin:5px;">
+                <div style="font-size:12px; color:#ffd6d6; margin-bottom:3px;">🚨 ОБСЛУЖИТЬ</div>
+                <div style="font-size:20px; font-weight:bold; color:#ff6b6b;">
+                    {{ status_counts[config.STATUS_URGENT] }} ({{ "%.1f"|format(unserviced_percentage) }}%)
+                </div>
+            </div>
+            <div style="margin:5px 0 5px 20px;">
+                <div style="font-size:12px; color:#ffe082; margin-bottom:3px;">⚠️ Внимание</div>
+                <div style="font-size:20px; font-weight:bold; color:#ffd54f;">
+                    {{ status_counts[config.STATUS_WARNING] }}
+                </div>
+            </div>
+            <div style="margin:5px 0 5px 20px;">
+                <div style="font-size:12px; color:#18bc9c; margin-bottom:3px;">✅ Не требуется</div>
+                <div style="font-size:20px; font-weight:bold; color:#18bc9c;">
+                    {{ status_counts[config.STATUS_OK] }}
+                </div>
+            </div>
+            <div style="margin:5px 0 5px 20px;">
+                <div style="font-size:12px; color:#bbdefb; margin-bottom:3px;">📊 Всего</div>
+                <div style="font-size:20px; font-weight:bold; color:#4fc3f7;">
+                    {{ total_records }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    {% if email_status == "sent" %}
+        <div class="status-banner status-banner-ok">
+            Письмо успешно отправлено получателям.
+        </div>
+    {% elif email_status == "error" %}
+        <div class="status-banner status-banner-error">
+            Ошибка при отправке письма. Подробности см. в логе.
+        </div>
+    {% elif email_status == "no_items" %}
+        <div class="status-banner status-banner-info">
+            Нет срочных или приближающихся напоминаний для отправки письма.
+        </div>
+    {% endif %}
+
+    <div class="filters-row">
+        <form method="get" action="{{ url_for('dashboard') }}" style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
+            <div>
+                <label for="sheet_type" style="font-size:13px; margin-right:4px;">Тип:</label>
+                <select name="sheet_type" id="sheet_type">
+                    <option value="all" {% if sheet_type == "all" %}selected{% endif %}>Все</option>
+                    <option value="ПК АСУ ТП" {% if sheet_type == "ПК АСУ ТП" %}selected{% endif %}>ПК АСУ ТП</option>
+                    <option value="Шкафы АСУ ТП" {% if sheet_type == "Шкафы АСУ ТП" %}selected{% endif %}>Шкафы АСУ ТП</option>
+                </select>
+            </div>
+            <div>
+                <label for="status" style="font-size:13px; margin-right:4px;">Статус:</label>
+                <select name="status" id="status">
+                    <option value="all" {% if status_filter == "all" %}selected{% endif %}>Все</option>
+                    <option value="urgent" {% if status_filter == "urgent" %}selected{% endif %}>ОБСЛУЖИТЬ</option>
+                    <option value="warning" {% if status_filter == "warning" %}selected{% endif %}>Внимание</option>
+                </select>
+            </div>
+            <div>
+                <button type="submit" class="btn btn-primary">Применить фильтры</button>
+            </div>
+        </form>
+
+        <form method="post" action="{{ url_for('send_email') }}" style="margin-left:auto;">
+            <button type="submit" class="btn btn-danger">
+                🔔 Отправить письмо сейчас
+            </button>
+        </form>
+    </div>
+
+    <div style="margin-top:10px;">
+        <img src="{{ url_for('chart_png') }}" alt="Диаграмма статусов" style="max-width:100%; border-radius:6px;">
+    </div>
+</div>
+
+<div class="card">
+    {% if urgent_items %}
+        <div class="section-title" style="color:#e74c3c;">
+            🚨 ОБСЛУЖИТЬ (записей: {{ total_urgent }})
+        </div>
+        <hr class="section-separator" style="background-color:#e74c3c;">
+        {% for item in urgent_items %}
+            <div style="background-color: {{ loop.cycle('#F9FCFF', '#ffffff') }}; margin-left:0; padding:10px 10px 10px 25px;">
+                {{ item.html|safe }}
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="section-title" style="color:#18bc9c;">
+            Нет срочных работ.
+        </div>
+    {% endif %}
+</div>
+
+<div class="card">
+    {% if warning_items %}
+        <div class="section-title" style="color:#f39c12;">
+            ⚠️ ВНИМАНИЕ! Приближается срок обслуживания. (записей: {{ total_warning }})
+        </div>
+        <hr class="section-separator" style="background-color:#f39c12;">
+        {% for item in warning_items %}
+            <div style="background-color: {{ loop.cycle('#F9FCFF', '#ffffff') }}; margin-left:0; padding:10px 10px 10px 25px;">
+                {{ item.html|safe }}
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="section-title">
+            Нет приближающихся работ.
+        </div>
+    {% endif %}
+</div>
+
+<div class="card" style="background-color:#EFF2F6; border-left:4px solid #18bc9c; font-size:11px; color:#333;">
+    <div style="margin-bottom:8px;">
+        <span style="font-weight:bold; color:#2c3e50;">
+            🔧 Скрипт рассылки уведомлений об обслуживании оборудования АСУТП
+        </span>
+        <span style="float:right; background-color:#18bc9c; color:white; padding:2px 8px; border-radius:10px; font-size:10px;">
+            v{{ config.VERSION }} от {{ config.RELEASE_DATE }}<br/>semonoff@gmail.com
+        </span>
+    </div>
+    <div style="clear:both;"></div>
+    <div style="line-height:1.4;">
+        <span style="color:#2c3e50;">📂 Файлы на сервере:</span><br/>
+        <span style="margin-left:15px;">📊 Таблица:</span>
+        <code>{{ config.get_excel_file_path() }}</code><br/>
+        <span style="margin-left:15px;">🐍 Скрипт:</span>
+        <code>{{ config.PROGRAM_DIR / 'maintenance_alert.py' }}</code><br/>
+        <span>📧 Получатели ({{ config.RECIPIENTS|length }}):</span>
+        {{ config.RECIPIENTS | join(', ') }}
+    </div>
+</div>
+
+{% endblock %}

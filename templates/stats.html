@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="card">
+    <div class="section-title">📊 Статистика обслуживания (последние периоды)</div>
+    <hr class="section-separator">
+
+    <div style="display:flex; flex-wrap:wrap; gap:15px;">
+        <div style="flex:1; min-width:200px;">
+            <div style="font-size:12px; color:#607d8b;">Обслужено (максимум за день в периоде)</div>
+            <table style="width:100%; border-collapse:collapse; font-size:13px; margin-top:5px;">
+                <tr>
+                    <td>Сегодня:</td>
+                    <td style="text-align:right; font-weight:bold;">{{ stats.today }}</td>
+                </tr>
+                <tr>
+                    <td>Вчера:</td>
+                    <td style="text-align:right;">{{ stats.yesterday }}</td>
+                </tr>
+                <tr>
+                    <td>На этой неделе:</td>
+                    <td style="text-align:right;">{{ stats.this_week }}</td>
+                </tr>
+                <tr>
+                    <td>Прошлая неделя:</td>
+                    <td style="text-align:right;">{{ stats.last_week }}</td>
+                </tr>
+                <tr>
+                    <td>В этом месяце:</td>
+                    <td style="text-align:right;">{{ stats.this_month }}</td>
+                </tr>
+                <tr>
+                    <td>Прошлый месяц:</td>
+                    <td style="text-align:right;">{{ stats.last_month }}</td>
+                </tr>
+            </table>
+        </div>
+
+        <div style="flex:1; min-width:200px;">
+            <div style="font-size:12px; color:#e74c3c;">Срочные (ОБСЛУЖИТЬ)</div>
+            <table style="width:100%; border-collapse:collapse; font-size:13px; margin-top:5px;">
+                <tr>
+                    <td>Сегодня:</td>
+                    <td style="text-align:right; font-weight:bold;">{{ stats.urgent_today }}</td>
+                </tr>
+                <tr>
+                    <td>Вчера:</td>
+                    <td style="text-align:right;">{{ stats.urgent_yesterday }}</td>
+                </tr>
+                <tr>
+                    <td>На этой неделе:</td>
+                    <td style="text-align:right;">{{ stats.urgent_this_week }}</td>
+                </tr>
+                <tr>
+                    <td>Прошлая неделя:</td>
+                    <td style="text-align:right;">{{ stats.urgent_last_week }}</td>
+                </tr>
+                <tr>
+                    <td>В этом месяце:</td>
+                    <td style="text-align:right;">{{ stats.urgent_this_month }}</td>
+                </tr>
+                <tr>
+                    <td>Прошлый месяц:</td>
+                    <td style="text-align:right;">{{ stats.urgent_last_month }}</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="section-title">Диаграмма по дням (последние 62 дня)</div>
+    <hr class="section-separator">
+    <img src="{{ url_for('chart_png') }}" alt="Диаграмма статусов" style="max-width:100%; border-radius:6px;">
+</div>
+
+{% endblock %}

@@ -10,6 +10,8 @@ from email import encoders
 from pathlib import Path
 import sys
 import json
+import matplotlib
+matplotlib.use('Agg')  # Use non-GUI backend for thread safety
 import matplotlib.pyplot as plt
 import logging
 from openpyxl import load_workbook
