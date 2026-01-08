@@ -28,13 +28,13 @@
             <div style="margin:5px;">
                 <div style="font-size:12px; color:#ffd6d6; margin-bottom:3px;">🚨 ОБСЛУЖИТЬ</div>
                 <div style="font-size:20px; font-weight:bold; color:#ff6b6b;">
-                    {{ status_counts[config.STATUS_URGENT] }} ({{ "%.1f"|format(unserviced_percentage) }}%)
+                    {{ filtered_urgent_count }} / {{ total_urgent }}
                 </div>
             </div>
             <div style="margin:5px 0 5px 20px;">
                 <div style="font-size:12px; color:#ffe082; margin-bottom:3px;">⚠️ Внимание</div>
                 <div style="font-size:20px; font-weight:bold; color:#ffd54f;">
-                    {{ status_counts[config.STATUS_WARNING] }}
+                    {{ filtered_warning_count }} / {{ total_warning }}
                 </div>
             </div>
             <div style="margin:5px 0 5px 20px;">
@@ -54,6 +54,23 @@
             <a href="{{ url_for('download_excel') }}" title="Скачать таблицу">
                 <img src="{{ url_for('static', filename='excel.png') }}" alt="Excel" style="width:52px; height:52px; border-radius:6px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
             </a>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div style="margin-top:10px;">
+        <img src="{{ url_for('chart_png') }}?offset={{ chart_offset }}" alt="Диаграмма статусов" style="max-width:100%; border-radius:6px;">
+        <div style="display:flex; align-items:center; gap:10px; margin-top:8px;">
+            <form method="get" action="{{ url_for('dashboard') }}" style="display:flex; align-items:center; gap:10px;">
+                <input type="hidden" name="object" value="{{ object_filter }}">
+                <input type="hidden" name="status" value="{{ status_filter }}">
+                <input type="hidden" name="designation" value="{{ designation_filter }}">
+                <label for="chart_date" style="font-size:13px; color:#2c3e50; font-weight:bold;">Дата диаграммы:</label>
+                <input type="date" name="chart_date" id="chart_date" value="{{ chart_date }}" style="padding:6px 10px; border-radius:4px; border:1px solid #cfd8dc; font-size:13px;">
+                <button type="submit" class="btn btn-primary" style="padding:6px 12px;">📊 Построить</button>
+                <a href="?object={{ object_filter }}&status={{ status_filter }}&designation={{ designation_filter }}&chart_date=" class="btn btn-primary" style="text-decoration:none; padding:6px 12px;">📅 Сегодня</a>
+            </form>
         </div>
     </div>
 </div>
@@ -107,27 +124,12 @@
             </button>
         </form>
     </div>
-
-    <div style="margin-top:10px;">
-        <img src="{{ url_for('chart_png') }}?offset={{ chart_offset }}" alt="Диаграмма статусов" style="max-width:100%; border-radius:6px;">
-        <div style="display:flex; align-items:center; gap:10px; margin-top:8px;">
-            <form method="get" action="{{ url_for('dashboard') }}" style="display:flex; align-items:center; gap:10px;">
-                <input type="hidden" name="object" value="{{ object_filter }}">
-                <input type="hidden" name="status" value="{{ status_filter }}">
-                <input type="hidden" name="designation" value="{{ designation_filter }}">
-                <label for="chart_date" style="font-size:13px; color:#2c3e50; font-weight:bold;">Дата диаграммы:</label>
-                <input type="date" name="chart_date" id="chart_date" value="{{ chart_date }}" style="padding:6px 10px; border-radius:4px; border:1px solid #cfd8dc; font-size:13px;">
-                <button type="submit" class="btn btn-primary" style="padding:6px 12px;">📊 Построить</button>
-                <a href="?object={{ object_filter }}&status={{ status_filter }}&designation={{ designation_filter }}&chart_date=" class="btn btn-primary" style="text-decoration:none; padding:6px 12px;">📅 Сегодня</a>
-            </form>
-        </div>
-    </div>
 </div>
 
 <div class="card">
     {% if urgent_items %}
         <div class="section-title" style="color:#e74c3c;">
-            🚨 ОБСЛУЖИТЬ (записей: {{ total_urgent }})
+            🚨 ОБСЛУЖИТЬ (записей: {{ urgent_items|length }} из {{ total_urgent }})
         </div>
         <hr class="section-separator" style="background-color:#e74c3c;">
         {% for item in urgent_items %}
@@ -145,7 +147,7 @@
 <div class="card">
     {% if warning_items %}
         <div class="section-title" style="color:#f39c12;">
-            ⚠️ ВНИМАНИЕ! Приближается срок обслуживания. (записей: {{ total_warning }})
+            ⚠️ ВНИМАНИЕ! Приближается срок обслуживания. (записей: {{ warning_items|length }} из {{ total_warning }})
         </div>
         <hr class="section-separator" style="background-color:#f39c12;">
         {% for item in warning_items %}
@@ -160,7 +162,7 @@
     {% endif %}
 </div>
 
-<div class="card" style="background-color:#EFF2F6; border-left:4px solid #18bc9c; font-size:11px; color:#333;">
+<div class="card" style="background-color:#ffffff; border-left:4px solid #18bc9c; font-size:11px; color:#333;">
     <div style="margin-bottom:8px;">
         <span style="font-weight:bold; color:#2c3e50;">
             🔧 Скрипт рассылки уведомлений об обслуживании оборудования АСУТП

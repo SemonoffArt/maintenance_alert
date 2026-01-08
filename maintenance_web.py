@@ -94,11 +94,15 @@ def dashboard():
     filtered_urgent = apply_filters(urgent_list) if show_urgent else []
     filtered_warning = apply_filters(warning_list) if show_warning else []
 
-    unserviced_count = status_counts.get(config.STATUS_URGENT, 0)
-    unserviced_percentage = (unserviced_count / total_records * 100) if total_records else 0.0
-
+    filtered_urgent_count = len(filtered_urgent)
+    filtered_warning_count = len(filtered_warning)
     total_urgent = len(urgent_list)
     total_warning = len(warning_list)
+
+    # Use filtered counts for percentage if filters are applied? 
+    # Actually, keep the global stats but maybe show filtered ones.
+    unserviced_count = status_counts.get(config.STATUS_URGENT, 0)
+    unserviced_percentage = (unserviced_count / total_records * 100) if total_records else 0.0
 
     return render_template(
         "dashboard.html",
@@ -110,6 +114,8 @@ def dashboard():
         warning_items=filtered_warning,
         total_urgent=total_urgent,
         total_warning=total_warning,
+        filtered_urgent_count=filtered_urgent_count,
+        filtered_warning_count=filtered_warning_count,
         sheet_type=sheet_type,
         status_filter=status_filter,
         designation_filter=designation_filter,
