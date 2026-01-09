@@ -209,12 +209,8 @@ def send_email():
 
 @app.route("/download-excel")
 def download_excel():
-    # File is usually in TMP_DIR after recalculation
-    file_path = config.TMP_DIR / config.EXCEL_FILENAME
-    if not file_path.exists():
-        # Fallback to original file if tmp doesn't exist
-        file_path = config.get_excel_file_path()
-        
+    """Скачивает оригинальный файл Excel."""
+    file_path = config.get_excel_file_path()
     if not file_path.exists():
         return ("Файл не найден", 404)
         
@@ -222,6 +218,28 @@ def download_excel():
         file_path,
         as_attachment=True,
         download_name=config.EXCEL_FILENAME
+    )
+
+
+@app.route("/download-excel-tmp")
+def download_excel_tmp():
+    """Генерирует и скачивает файл Excel только с оборудованием, требующим обслуживания."""
+    # Получаем актуальные данные о срочном обслуживании
+    urgent_items, _, _, _, _ = excel_handler.read_data()
+    
+    if not urgent_items:
+        return ("Нет оборудования, требующего срочного обслуживания (список пуст).", 404)
+        
+    # Генерируем файл на основе шаблона
+    file_path = excel_handler.generate_maintenance_data_file(urgent_items)
+    
+    if not file_path or not file_path.exists():
+        return ("Ошибка при генерации файла для обслуживания.", 500)
+        
+    return send_file(
+        file_path,
+        as_attachment=True,
+        download_name=file_path.name
     )
 
 

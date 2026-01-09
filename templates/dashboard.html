@@ -74,9 +74,12 @@
                 </div>
             </div>
         </div>
-        <div style="margin-left:20px;">
-            <a href="{{ url_for('download_excel') }}" title="Скачать таблицу">
+        <div style="margin-left:20px; display: flex; gap: 10px; align-items: center;">
+            <a href="{{ url_for('download_excel') }}" title="Скачать полную таблицу обслуживания оборудования АСУ ТП (Оригинал)">
                 <img src="{{ url_for('static', filename='excel.png') }}" alt="Excel" style="width:52px; height:52px; border-radius:6px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
+            </a>
+            <a href="{{ url_for('download_excel_tmp') }}" title="Скачать таблицу оборудования только с записями для обслуживания">
+                <img src="{{ url_for('static', filename='excel_alter.png') }}" alt="Excel Maintenance" style="width:52px; height:52px; border-radius:6px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
             </a>
         </div>
     </div>
