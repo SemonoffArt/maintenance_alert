@@ -212,6 +212,7 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
+offline_packages/
 backups_excel/
 Обслуживание ПК и шкафов АСУТП.xlsx
 data/maintenance_status_chart.png
