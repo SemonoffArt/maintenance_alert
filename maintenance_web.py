@@ -342,6 +342,6 @@ def mark_bulk_serviced():
 
 
 if __name__ == "__main__":
-    # For production you will likely set host/port and disable debug,
-    # but this is fine for local testing.
-    app.run(debug=True)
+    # Разрешаем доступ из сети (0.0.0.0 слушает все интерфейсы)
+    # Приложение будет доступно по IP сервера в сети 10.100.56.x
+    app.run(host='0.0.0.0', port=5000, debug=False)
