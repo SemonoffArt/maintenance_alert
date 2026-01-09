@@ -21,7 +21,7 @@ from typing import Dict, List, Tuple, Optional, Any, NamedTuple
 # --- 1. Конфигурация и константы ---
 class Config:
     """Класс для хранения всех конфигурационных данных."""
-    VERSION = "1.5.0"
+    VERSION = "2.0.0"
     RELEASE_DATE = "10.09.2025"
 
     PROGRAM_DIR = Path(__file__).parent.absolute()

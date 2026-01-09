@@ -44,7 +44,9 @@
 <div class="card" style="background-color: #2c3e50; border-left: 4px solid #18bc9c; color: white;">
     <div style="display:flex; flex-wrap:wrap; align-items:center;">
         <div style="margin-right:20px;">
-            <img src="{{ url_for('static', filename='manky.png') }}" alt="Иконка" style="width:64px; height:64px; border-radius:8px;">
+            <a id="main-refresh-link" href="{{ url_for('dashboard') }}" title="Обновить страницу">
+                <img id="main-app-icon" src="{{ url_for('static', filename='manky.png') }}" alt="Иконка" style="width:64px; height:64px; border-radius:8px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
+            </a>
         </div>
         <div style="display:flex; flex-wrap:wrap; justify-content:space-around; text-align:center; align-items:center; flex:1;">
             <div style="margin:5px;">
@@ -361,6 +363,11 @@
             return;
         }
         
+        // Show loading animation before submission
+        if (typeof window.showLoading === 'function') {
+            window.showLoading();
+        }
+        
         // Collect all selected items
         const items = [];
         checkboxes.forEach(function(checkbox) {
@@ -414,6 +421,45 @@
     if (bulkWarningBtn) {
         bulkWarningBtn.addEventListener('click', function() {
             processBulkServiced('warning-checkbox', 'предупреждение');
+        });
+    }
+})();
+</script>
+
+<script>
+// Loading state handler (animated GIF on action)
+(function() {
+    const mainIcon = document.getElementById('main-app-icon');
+    const mainLink = document.getElementById('main-refresh-link');
+    const gifUrl = "{{ url_for('static', filename='manky.gif') }}";
+
+    window.showLoading = function() {
+        if (mainIcon) {
+            mainIcon.src = gifUrl;
+            // Slightly fade the icon to show it's active
+            mainIcon.style.opacity = '0.8';
+        }
+        if (mainLink) {
+            mainLink.style.pointerEvents = 'none';
+        }
+        // Disable all submit buttons to prevent double clicks during slow operations (like Excel/Email)
+        const submitButtons = document.querySelectorAll('button[type="submit"], button.btn-danger, button.btn-primary');
+        submitButtons.forEach(btn => {
+            btn.style.opacity = '0.6';
+            btn.style.pointerEvents = 'none';
+        });
+    };
+
+    // Catch all form submissions (Excel updates, emails, filters)
+    document.addEventListener('submit', function(e) {
+        // If the form has a confirm() onsubmit, this event fires ONLY after user clicks 'OK'
+        window.showLoading();
+    });
+
+    // Catch the refresh link click
+    if (mainLink) {
+        mainLink.addEventListener('click', function() {
+            window.showLoading();
         });
     }
 })();
