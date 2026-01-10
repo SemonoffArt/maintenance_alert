@@ -222,14 +222,14 @@
         </div>
         <div style="margin-left:20px; display: flex; gap: 10px; align-items: center;">
             <a href="{{ url_for('download_excel') }}" title="Скачать полную таблицу обслуживания оборудования АСУ ТП (Оригинал)">
-                <img src="{{ url_for('static', filename='excel.png') }}" alt="Excel" style="width:52px; height:52px; border-radius:6px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
+                <img src="{{ url_for('static', filename='excel.png') }}" alt="Excel" style="width:40px; height:40px; border-radius:6px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
             </a>
             <a href="{{ url_for('download_excel_tmp') }}" title="Скачать таблицу оборудования только с записями для обслуживания">
-                <img src="{{ url_for('static', filename='excel_alter.png') }}" alt="Excel Maintenance" style="width:52px; height:52px; border-radius:6px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
+                <img src="{{ url_for('static', filename='excel_alter.png') }}" alt="Excel Maintenance" style="width:40px; height:40px; border-radius:6px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
             </a>
             <form method="post" action="{{ url_for('send_email') }}" style="margin:0; display:flex;">
                 <button type="submit" title="Отправить письмо" style="background:none; border:none; padding:0; cursor:pointer; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
-                    <img src="{{ url_for('static', filename='mail.png') }}" alt="Email" style="width:52px; height:52px; border-radius:6px;">
+                    <img src="{{ url_for('static', filename='mail.png') }}" alt="Email" style="width:40px; height:40px; border-radius:6px;">
                 </button>
             </form>
         </div>
@@ -237,22 +237,6 @@
 </div>
 
 
-
-<!-- <div class="card">
-    {% if email_status == "sent" %}
-        <div class="status-banner status-banner-ok">
-            Письмо успешно отправлено получателям.
-        </div>
-    {% elif email_status == "error" %}
-        <div class="status-banner status-banner-error">
-            Ошибка при отправке письма. Подробности см. в логе.
-        </div>
-    {% elif email_status == "no_items" %}
-        <div class="status-banner status-banner-info">
-            Нет срочных или приближающихся напоминаний для отправки письма.
-        </div>
-    {% endif %}
-</div> -->
 
 <div class="card">
     <div class="section-title">
