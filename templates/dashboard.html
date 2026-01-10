@@ -41,6 +41,39 @@
 </div>
 {% endif %}
 
+{% if email_status == "sent" %}
+<div class="card" style="background-color: #18bc9c; border-left: 5px solid #16a085; color: white;">
+    <div style="display:flex; align-items:center;">
+        <div style="margin-right:15px; font-size:32px;">📧</div>
+        <div>
+            <div style="font-weight:bold; margin-bottom:5px;">✅ Письмо отправлено!</div>
+            <div>Письмо успешно отправлено получателям.</div>
+        </div>
+    </div>
+</div>
+{% elif email_status == "error" %}
+<div class="card" style="background-color: #ff6b6b; border-left: 5px solid #e74c3c; color: white;">
+    <div style="display:flex; align-items:center;">
+        <div style="margin-right:15px; font-size:32px;">❌</div>
+        <div>
+            <div style="font-weight:bold; margin-bottom:5px;">❌ Ошибка отправки</div>
+            <div>Ошибка при отправке письма. Подробности см. в логе.</div>
+        </div>
+    </div>
+</div>
+{% elif email_status == "no_items" %}
+<div class="card" style="background-color: #4fc3f7; border-left: 5px solid #29b6f6; color: white;">
+    <div style="display:flex; align-items:center;">
+        <div style="margin-right:15px; font-size:32px;">ℹ️</div>
+        <div>
+            <div style="font-weight:bold; margin-bottom:5px;">Сообщений нет</div>
+            <div>Нет срочных или приближающихся напоминаний для отправки письма.</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+
 <div class="card">
     <div style="margin-top:10px;">
         <img id="chart-image" src="{{ url_for('chart_png') }}?offset={{ chart_offset }}" alt="Диаграмма статусов" style="max-width:100%; border-radius:6px;">
@@ -194,13 +227,18 @@
             <a href="{{ url_for('download_excel_tmp') }}" title="Скачать таблицу оборудования только с записями для обслуживания">
                 <img src="{{ url_for('static', filename='excel_alter.png') }}" alt="Excel Maintenance" style="width:52px; height:52px; border-radius:6px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
             </a>
+            <form method="post" action="{{ url_for('send_email') }}" style="margin:0; display:flex;">
+                <button type="submit" title="Отправить письмо" style="background:none; border:none; padding:0; cursor:pointer; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
+                    <img src="{{ url_for('static', filename='mail.png') }}" alt="Email" style="width:52px; height:52px; border-radius:6px;">
+                </button>
+            </form>
         </div>
     </div>
 </div>
 
 
 
-<div class="card">
+<!-- <div class="card">
     {% if email_status == "sent" %}
         <div class="status-banner status-banner-ok">
             Письмо успешно отправлено получателям.
@@ -214,7 +252,12 @@
             Нет срочных или приближающихся напоминаний для отправки письма.
         </div>
     {% endif %}
+</div> -->
 
+<div class="card">
+    <div class="section-title">
+        📋 Оборудование, требующее обслуживания
+    </div>
     <div class="filters-row">
         <form id="filters-form" method="get" action="{{ url_for('dashboard') }}" style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
             <div>
@@ -243,17 +286,7 @@
             </div> -->
         </form>
 
-        <form method="post" action="{{ url_for('send_email') }}" style="margin-left:auto;">
-            <button type="submit" class="btn btn-danger">
-                🔔 Отправить письмо
-            </button>
-        </form>
-    </div>
-</div>
 
-<div class="card">
-    <div class="section-title">
-        📋 Оборудование, требующее обслуживания
     </div>
 
     <div style="overflow-x:auto; margin-top:10px;">

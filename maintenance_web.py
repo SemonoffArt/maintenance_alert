@@ -116,6 +116,10 @@ def dashboard():
     urgent_list = _build_items_list(urgent_items, "urgent")
     warning_list = _build_items_list(warning_items, "warning")
 
+    # Sort both lists by object name ascending
+    urgent_list.sort(key=lambda x: str(x.get("object", "")))
+    warning_list.sort(key=lambda x: str(x.get("object", "")))
+
     # Collect unique objects for dropdown
     all_items = urgent_list + warning_list
     unique_objects = sorted(set(item.get("object", "") for item in all_items if item.get("object")))
