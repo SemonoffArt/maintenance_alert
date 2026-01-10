@@ -41,50 +41,6 @@
 </div>
 {% endif %}
 
-<div class="card" style="background-color: #2c3e50; border-left: 4px solid #18bc9c; color: white;">
-    <div style="display:flex; flex-wrap:wrap; align-items:center;">
-        <div style="margin-right:20px;">
-            <a id="main-refresh-link" href="{{ url_for('dashboard') }}" title="Обновить страницу">
-                <img id="main-app-icon" src="{{ url_for('static', filename='manky.png') }}" alt="Иконка" style="width:64px; height:64px; border-radius:8px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
-            </a>
-        </div>
-        <div style="display:flex; flex-wrap:wrap; justify-content:space-around; text-align:center; align-items:center; flex:1;">
-            <div style="margin:5px;">
-                <div style="font-size:14px; color:#ffd6d6; margin-bottom:3px;">🚨 ОБСЛУЖИТЬ</div>
-                <div style="font-size:28px; font-weight:bold; color:#ff6b6b;">
-                    <span id="urgent-counter">{{ filtered_urgent_count }}</span> / {{ total_urgent }}
-                </div>
-            </div>
-            <div style="margin:5px 0 5px 20px;">
-                <div style="font-size:14px; color:#ffe082; margin-bottom:3px;">⚠️ Внимание</div>
-                <div style="font-size:28px; font-weight:bold; color:#ffd54f;">
-                    <span id="warning-counter">{{ filtered_warning_count }}</span> / {{ total_warning }}
-                </div>
-            </div>
-            <div style="margin:5px 0 5px 20px;">
-                <div style="font-size:14px; color:#18bc9c; margin-bottom:3px;">✅ Не требуется</div>
-                <div style="font-size:28px; font-weight:bold; color:#18bc9c;">
-                    {{ status_counts[config.STATUS_OK] }}
-                </div>
-            </div>
-            <div style="margin:5px 0 5px 20px;">
-                <div style="font-size:14px; color:#bbdefb; margin-bottom:3px;">📊 Всего</div>
-                <div style="font-size:28px; font-weight:bold; color:#4fc3f7;">
-                    {{ total_records }}
-                </div>
-            </div>
-        </div>
-        <div style="margin-left:20px; display: flex; gap: 10px; align-items: center;">
-            <a href="{{ url_for('download_excel') }}" title="Скачать полную таблицу обслуживания оборудования АСУ ТП (Оригинал)">
-                <img src="{{ url_for('static', filename='excel.png') }}" alt="Excel" style="width:52px; height:52px; border-radius:6px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
-            </a>
-            <a href="{{ url_for('download_excel_tmp') }}" title="Скачать таблицу оборудования только с записями для обслуживания">
-                <img src="{{ url_for('static', filename='excel_alter.png') }}" alt="Excel Maintenance" style="width:52px; height:52px; border-radius:6px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
-            </a>
-        </div>
-    </div>
-</div>
-
 <div class="card">
     <div style="margin-top:10px;">
         <img id="chart-image" src="{{ url_for('chart_png') }}?offset={{ chart_offset }}" alt="Диаграмма статусов" style="max-width:100%; border-radius:6px;">
@@ -197,6 +153,53 @@
 })();
 </script>
 
+
+<div class="card" style="background-color: #2c3e50; border-left: 4px solid #18bc9c; color: white;">
+    <div style="display:flex; flex-wrap:wrap; align-items:center;">
+        <div style="margin-right:20px;">
+            <a id="main-refresh-link" href="{{ url_for('dashboard') }}" title="Обновить страницу">
+                <img id="main-app-icon" src="{{ url_for('static', filename='manky.png') }}" alt="Иконка" style="width:64px; height:64px; border-radius:8px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
+            </a>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; justify-content:space-around; text-align:center; align-items:center; flex:1;">
+            <div style="margin:5px;">
+                <div style="font-size:14px; color:#ffd6d6; margin-bottom:3px;">🚨 ОБСЛУЖИТЬ</div>
+                <div style="font-size:28px; font-weight:bold; color:#ff6b6b;">
+                    <span id="urgent-counter">{{ filtered_urgent_count }}</span> / {{ total_urgent }}
+                </div>
+            </div>
+            <div style="margin:5px 0 5px 20px;">
+                <div style="font-size:14px; color:#ffe082; margin-bottom:3px;">⚠️ Внимание</div>
+                <div style="font-size:28px; font-weight:bold; color:#ffd54f;">
+                    <span id="warning-counter">{{ filtered_warning_count }}</span> / {{ total_warning }}
+                </div>
+            </div>
+            <div style="margin:5px 0 5px 20px;">
+                <div style="font-size:14px; color:#18bc9c; margin-bottom:3px;">✅ Не требуется</div>
+                <div style="font-size:28px; font-weight:bold; color:#18bc9c;">
+                    {{ status_counts[config.STATUS_OK] }}
+                </div>
+            </div>
+            <div style="margin:5px 0 5px 20px;">
+                <div style="font-size:14px; color:#bbdefb; margin-bottom:3px;">📊 Всего</div>
+                <div style="font-size:28px; font-weight:bold; color:#4fc3f7;">
+                    {{ total_records }}
+                </div>
+            </div>
+        </div>
+        <div style="margin-left:20px; display: flex; gap: 10px; align-items: center;">
+            <a href="{{ url_for('download_excel') }}" title="Скачать полную таблицу обслуживания оборудования АСУ ТП (Оригинал)">
+                <img src="{{ url_for('static', filename='excel.png') }}" alt="Excel" style="width:52px; height:52px; border-radius:6px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
+            </a>
+            <a href="{{ url_for('download_excel_tmp') }}" title="Скачать таблицу оборудования только с записями для обслуживания">
+                <img src="{{ url_for('static', filename='excel_alter.png') }}" alt="Excel Maintenance" style="width:52px; height:52px; border-radius:6px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
+            </a>
+        </div>
+    </div>
+</div>
+
+
+
 <div class="card">
     {% if email_status == "sent" %}
         <div class="status-banner status-banner-ok">
@@ -275,7 +278,7 @@
                     data-status-text="{{ item.status_text }}"
                     data-object="{{ item.object }}"
                     data-designation="{{ item.designation }}"
-                    style="background-color: {{ loop.cycle('#ffe6e6', '#ffd9d9') }};">
+                    style="background-color: {{ loop.cycle('#f2f2f2', '#e8e8e8') }};">
                     <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.object }}</td>
                     <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.name }}</td>
                     <td style="padding:8px; border:1px solid #cfd8dc;"><strong>{{ item.designation }}</strong></td>
@@ -320,7 +323,7 @@
                     data-status-text="{{ item.status_text }}"
                     data-object="{{ item.object }}"
                     data-designation="{{ item.designation }}"
-                    style="background-color: {{ loop.cycle('#fff8e6', '#fff2cc') }};">
+                    style="background-color: {{ loop.cycle('#ffffff', '#f9f9f9') }};">
                     <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.object }}</td>
                     <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.name }}</td>
                     <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.designation }}</td>
