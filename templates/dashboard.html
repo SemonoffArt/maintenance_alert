@@ -52,13 +52,13 @@
             <div style="margin:5px;">
                 <div style="font-size:14px; color:#ffd6d6; margin-bottom:3px;">🚨 ОБСЛУЖИТЬ</div>
                 <div style="font-size:28px; font-weight:bold; color:#ff6b6b;">
-                    {{ filtered_urgent_count }} / {{ total_urgent }}
+                    <span id="urgent-counter">{{ filtered_urgent_count }}</span> / {{ total_urgent }}
                 </div>
             </div>
             <div style="margin:5px 0 5px 20px;">
                 <div style="font-size:14px; color:#ffe082; margin-bottom:3px;">⚠️ Внимание</div>
                 <div style="font-size:28px; font-weight:bold; color:#ffd54f;">
-                    {{ filtered_warning_count }} / {{ total_warning }}
+                    <span id="warning-counter">{{ filtered_warning_count }}</span> / {{ total_warning }}
                 </div>
             </div>
             <div style="margin:5px 0 5px 20px;">
@@ -213,7 +213,7 @@
     {% endif %}
 
     <div class="filters-row">
-        <form method="get" action="{{ url_for('dashboard') }}" style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
+        <form id="filters-form" method="get" action="{{ url_for('dashboard') }}" style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
             <div>
                 <label for="object" style="font-size:13px; margin-right:4px;">Объект:</label>
                 <select name="object" id="object">
@@ -249,79 +249,139 @@
 </div>
 
 <div class="card">
-    {% if urgent_items %}
-        <div class="section-title" style="color:#e74c3c;">
-            🚨 ОБСЛУЖИТЬ (записей: {{ urgent_items|length }} из {{ total_urgent }})
-        </div>
-        <hr class="section-separator" style="background-color:#e74c3c;">
-        {% for item in urgent_items %}
-            <div style="background-color: {{ loop.cycle('#F9FCFF', '#ffffff') }}; margin-left:0; padding:10px 10px 10px 10px; position:relative;">
-                {{ item.html|safe }}
-                <div style="position:absolute; top:10px; right:10px; display:flex; align-items:center; gap:10px;">
-                    <input type="checkbox" class="equipment-checkbox urgent-checkbox" 
-                           data-sheet="{{ item.type }}" 
-                           data-row-number="{{ item.row_number }}" 
-                           style="width:18px; height:18px; cursor:pointer; accent-color: #e74c3c;"
-                           title="Выбрать для групповой обработки">
-                    <form method="post" action="{{ url_for('mark_serviced') }}" style="margin:0;" onsubmit="return confirm('Отметить оборудование «{{ item.designation }}» как обслуженное?');">
-                        <input type="hidden" name="sheet_name" value="{{ item.type }}">
-                        <input type="hidden" name="row_number" value="{{ item.row_number }}">
-                        <input type="hidden" name="object" value="{{ object_filter }}">
-                        <input type="hidden" name="status" value="{{ status_filter }}">
-                        <input type="hidden" name="designation_filter" value="{{ designation_filter }}">
-                        <button type="submit" class="btn btn-primary" style="padding:4px 12px; font-size:12px; background-color:#18bc9c; border:none;">✅ Обслужено</button>
-                    </form>
-                </div>
-            </div>
-        {% endfor %}
-        <div style="padding:15px; text-align:right; background-color:#f8f9fa; border-top:2px solid #e74c3c;">
-            <button type="button" id="bulk-serviced-urgent-btn" class="btn btn-danger" style="padding:8px 20px; font-size:14px; font-weight:bold;">
-                ✅ Обслужено всё выбранное
-            </button>
-        </div>
-    {% else %}
-        <div class="section-title" style="color:#18bc9c;">
-            Нет срочных работ.
-        </div>
-    {% endif %}
-</div>
+    <div class="section-title">
+        📋 Оборудование, требующее обслуживания
+    </div>
 
-<div class="card">
-    {% if warning_items %}
-        <div class="section-title" style="color:#f39c12;">
-            ⚠️ ВНИМАНИЕ! Приближается срок обслуживания. (записей: {{ warning_items|length }} из {{ total_warning }})
-        </div>
-        <hr class="section-separator" style="background-color:#f39c12;">
-        {% for item in warning_items %}
-            <div style="background-color: {{ loop.cycle('#F9FCFF', '#ffffff') }}; margin-left:0; padding:10px 10px 10px 10px; position:relative;">
-                {{ item.html|safe }}
-                <div style="position:absolute; top:10px; right:10px; display:flex; align-items:center; gap:10px;">
-                    <input type="checkbox" class="equipment-checkbox warning-checkbox" 
-                           data-sheet="{{ item.type }}" 
-                           data-row-number="{{ item.row_number }}" 
-                           style="width:18px; height:18px; cursor:pointer; accent-color: #f39c12;"
-                           title="Выбрать для групповой обработки">
-                    <form method="post" action="{{ url_for('mark_serviced') }}" style="margin:0;" onsubmit="return confirm('Отметить оборудование «{{ item.designation }}» как обслуженное?');">
-                        <input type="hidden" name="sheet_name" value="{{ item.type }}">
-                        <input type="hidden" name="row_number" value="{{ item.row_number }}">
-                        <input type="hidden" name="object" value="{{ object_filter }}">
-                        <input type="hidden" name="status" value="{{ status_filter }}">
-                        <input type="hidden" name="designation_filter" value="{{ designation_filter }}">
-                        <button type="submit" class="btn btn-primary" style="padding:4px 12px; font-size:12px; background-color:#18bc9c; border:none;">✅ Обслужено</button>
-                    </form>
-                </div>
-            </div>
-        {% endfor %}
-        <div style="padding:15px; text-align:right; background-color:#f8f9fa; border-top:2px solid #f39c12;">
-            <button type="button" id="bulk-serviced-warning-btn" class="btn btn-primary" style="padding:8px 20px; font-size:14px; font-weight:bold; background-color:#f39c12; border:none;">
-                ✅ Обслужено всё выбранное
-            </button>
-        </div>
-    {% else %}
-        <div class="section-title">
-            Нет приближающихся работ.
-        </div>
-    {% endif %}
+    <div style="overflow-x:auto; margin-top:10px;">
+        <table id="equipment-table" style="width:100%; border-collapse:collapse; font-size:13px;">
+            <thead>
+                <tr style="background-color:#2c3e50; color:white;">
+                    <th style="padding:10px; text-align:left; border:1px solid #cfd8dc;">№</th>
+                    <th style="padding:10px; text-align:left; border:1px solid #cfd8dc;">Объект</th>
+                    <th style="padding:10px; text-align:left; border:1px solid #cfd8dc;">Наименование</th>
+                    <th style="padding:10px; text-align:left; border:1px solid #cfd8dc;">Обозначение ПК</th>
+                    <th style="padding:10px; text-align:left; border:1px solid #cfd8dc;">Место расположения</th>
+                    <th style="padding:10px; text-align:left; border:1px solid #cfd8dc;">Работы</th>
+                    <th style="padding:10px; text-align:left; border:1px solid #cfd8dc;">Интервал ТО (дней)</th>
+                    <th style="padding:10px; text-align:left; border:1px solid #cfd8dc;">Напоминание (за дней)</th>
+                    <th style="padding:10px; text-align:left; border:1px solid #cfd8dc;">Дата последнего ТО</th>
+                    <th style="padding:10px; text-align:left; border:1px solid #cfd8dc;">Дата следующего ТО</th>
+                    <th style="padding:10px; text-align:left; border:1px solid #cfd8dc;">Статус</th>
+                </tr>
+            </thead>
+            <tbody id="equipment-tbody">
+                {% for item in urgent_items %}
+                <tr class="equipment-row"
+                    data-status-code="urgent"
+                    data-status-text="{{ item.status_text }}"
+                    data-object="{{ item.object }}"
+                    data-designation="{{ item.designation }}"
+                    style="background-color:#ffe6e6;">
+                    <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.number }}</td>
+                    <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.object }}</td>
+                    <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.name }}</td>
+                    <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.designation }}</td>
+                    <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.location }}</td>
+                    <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.works }}</td>
+                    <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.interval_days }}</td>
+                    <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.reminder_days }}</td>
+                    <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.last_date }}</td>
+                    <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.next_date }}</td>
+                    <td style="padding:8px; border:1px solid #cfd8dc;">
+                        <div style="font-weight:bold; color:#e74c3c;">{{ item.status_text }}</div>
+                        <div style="margin-top:4px; display:flex; align-items:center; gap:6px;">
+                            <input type="checkbox"
+                                   class="equipment-checkbox urgent-checkbox"
+                                   data-sheet="{{ item.type }}"
+                                   data-row-number="{{ item.row_number }}"
+                                   style="width:16px; height:16px; cursor:pointer; accent-color:#e74c3c;"
+                                   title="Выбрать для групповой обработки">
+                            <form method="post"
+                                  action="{{ url_for('mark_serviced') }}"
+                                  class="mark-serviced-form"
+                                  style="margin:0; display:inline;"
+                                  onsubmit="return confirm('Отметить оборудование «{{ item.designation }}» как обслуженное?');">
+                                <input type="hidden" name="sheet_name" value="{{ item.type }}">
+                                <input type="hidden" name="row_number" value="{{ item.row_number }}">
+                                <input type="hidden" name="object" value="{{ object_filter }}">
+                                <input type="hidden" name="status" value="{{ status_filter }}">
+                                <input type="hidden" name="designation_filter" value="{{ designation_filter }}">
+                                <button type="submit"
+                                        class="btn btn-primary"
+                                        style="padding:2px 8px; font-size:11px; background-color:#18bc9c; border:none;">
+                                    ✅ Обслужено
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+
+                {% for item in warning_items %}
+                <tr class="equipment-row"
+                    data-status-code="warning"
+                    data-status-text="{{ item.status_text }}"
+                    data-object="{{ item.object }}"
+                    data-designation="{{ item.designation }}"
+                    style="background-color:#fff8e6;">
+                    <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.number }}</td>
+                    <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.object }}</td>
+                    <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.name }}</td>
+                    <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.designation }}</td>
+                    <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.location }}</td>
+                    <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.works }}</td>
+                    <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.interval_days }}</td>
+                    <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.reminder_days }}</td>
+                    <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.last_date }}</td>
+                    <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.next_date }}</td>
+                    <td style="padding:8px; border:1px solid #cfd8dc;">
+                        <div style="font-weight:bold; color:#f39c12;">{{ item.status_text }}</div>
+                        <div style="margin-top:4px; display:flex; align-items:center; gap:6px;">
+                            <input type="checkbox"
+                                   class="equipment-checkbox warning-checkbox"
+                                   data-sheet="{{ item.type }}"
+                                   data-row-number="{{ item.row_number }}"
+                                   style="width:16px; height:16px; cursor:pointer; accent-color:#f39c12;"
+                                   title="Выбрать для групповой обработки">
+                            <form method="post"
+                                  action="{{ url_for('mark_serviced') }}"
+                                  class="mark-serviced-form"
+                                  style="margin:0; display:inline;"
+                                  onsubmit="return confirm('Отметить оборудование «{{ item.designation }}» как обслуженное?');">
+                                <input type="hidden" name="sheet_name" value="{{ item.type }}">
+                                <input type="hidden" name="row_number" value="{{ item.row_number }}">
+                                <input type="hidden" name="object" value="{{ object_filter }}">
+                                <input type="hidden" name="status" value="{{ status_filter }}">
+                                <input type="hidden" name="designation_filter" value="{{ designation_filter }}">
+                                <button type="submit"
+                                        class="btn btn-primary"
+                                        style="padding:2px 8px; font-size:11px; background-color:#18bc9c; border:none;">
+                                    ✅ Обслужено
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div style="padding:10px; text-align:right; margin-top:10px; border-top:1px solid #eceff1;">
+        <button type="button"
+                id="bulk-serviced-urgent-btn"
+                class="btn btn-danger"
+                style="padding:8px 20px; font-size:14px; font-weight:bold;">
+            ✅ Обслужено всё выбранное (СРОЧНО)
+        </button>
+        <button type="button"
+                id="bulk-serviced-warning-btn"
+                class="btn btn-primary"
+                style="padding:8px 20px; font-size:14px; font-weight:bold; background-color:#f39c12; border:none;">
+            ✅ Обслужено всё выбранное (Внимание)
+        </button>
+    </div>
 </div>
 
 <div class="card" style="background-color:#ffffff; border-left:4px solid #18bc9c; font-size:11px; color:#333;">
@@ -346,10 +406,115 @@
 </div>
 
 <script>
+// Client-side table filtering without page reload
+(function() {
+    const filtersForm = document.getElementById('filters-form');
+    const objectSelect = document.getElementById('object');
+    const statusSelect = document.getElementById('status');
+    const designationInput = document.getElementById('designation');
+
+    const rows = document.querySelectorAll('#equipment-tbody tr.equipment-row');
+    const urgentCounterEl = document.getElementById('urgent-counter');
+    const warningCounterEl = document.getElementById('warning-counter');
+
+    function applyFilters() {
+        const objVal = objectSelect ? objectSelect.value : 'all';
+        const statusVal = statusSelect ? statusSelect.value : 'all';
+        const designationVal = designationInput ? designationInput.value.trim().toLowerCase() : '';
+
+        let visibleUrgent = 0;
+        let visibleWarning = 0;
+
+        rows.forEach(function(row) {
+            const rowObj = row.getAttribute('data-object') || '';
+            const rowStatusCode = row.getAttribute('data-status-code'); // 'urgent' or 'warning'
+            const rowDesignation = (row.getAttribute('data-designation') || '').toLowerCase();
+
+            let visible = true;
+
+            if (objVal !== 'all' && rowObj !== objVal) {
+                visible = false;
+            }
+            if (statusVal !== 'all' && rowStatusCode !== statusVal) {
+                visible = false;
+            }
+            if (designationVal && !rowDesignation.includes(designationVal)) {
+                visible = false;
+            }
+
+            row.style.display = visible ? '' : 'none';
+
+            if (visible) {
+                if (rowStatusCode === 'urgent') {
+                    visibleUrgent++;
+                } else if (rowStatusCode === 'warning') {
+                    visibleWarning++;
+                }
+            }
+        });
+
+        if (urgentCounterEl) {
+            urgentCounterEl.textContent = visibleUrgent.toString();
+        }
+        if (warningCounterEl) {
+            warningCounterEl.textContent = visibleWarning.toString();
+        }
+    }
+
+    // Intercept filter form submit to avoid page reload
+    if (filtersForm) {
+        filtersForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            e.stopPropagation();  // so global submit handler (loading GIF) is not triggered
+            applyFilters();
+        });
+    }
+
+    // Live filtering when controls change
+    if (objectSelect) {
+        objectSelect.addEventListener('change', applyFilters);
+    }
+    if (statusSelect) {
+        statusSelect.addEventListener('change', applyFilters);
+    }
+    if (designationInput) {
+        designationInput.addEventListener('input', applyFilters);
+    }
+
+    // Keep hidden filter fields in single-item "Обслужено" forms in sync with current filters
+    const markForms = document.querySelectorAll('form.mark-serviced-form');
+    markForms.forEach(function(form) {
+        form.addEventListener('submit', function() {
+            const objInput = form.querySelector('input[name="object"]');
+            const statusInputHidden = form.querySelector('input[name="status"]');
+            const designationInputHidden = form.querySelector('input[name="designation_filter"]');
+
+            if (objInput && objectSelect) {
+                objInput.value = objectSelect.value;
+            }
+            if (statusInputHidden && statusSelect) {
+                statusInputHidden.value = statusSelect.value;
+            }
+            if (designationInputHidden && designationInput) {
+                designationInputHidden.value = designationInput.value;
+            }
+        });
+    });
+
+    // Initial application of filters, using values from server (URL params) or defaults
+    applyFilters();
+})();
+</script>
+
+<script>
 // Bulk serviced action for selected equipment
 (function() {
     const bulkUrgentBtn = document.getElementById('bulk-serviced-urgent-btn');
     const bulkWarningBtn = document.getElementById('bulk-serviced-warning-btn');
+
+    const objectSelect = document.getElementById('object');
+    const statusSelect = document.getElementById('status');
+    const designationInput = document.getElementById('designation');
     
     function processBulkServiced(checkboxClass, listType) {
         const checkboxes = document.querySelectorAll('.' + checkboxClass + ':checked');
@@ -392,24 +557,24 @@
         itemsInput.value = JSON.stringify(items);
         form.appendChild(itemsInput);
         
-        // Preserve filters
+        // Preserve filters from current UI state
         const objectInput = document.createElement('input');
         objectInput.type = 'hidden';
         objectInput.name = 'object';
-        objectInput.value = '{{ object_filter }}';
+        objectInput.value = objectSelect ? objectSelect.value : 'all';
         form.appendChild(objectInput);
         
-        const statusInput = document.createElement('input');
-        statusInput.type = 'hidden';
-        statusInput.name = 'status';
-        statusInput.value = '{{ status_filter }}';
-        form.appendChild(statusInput);
+        const statusInputHidden = document.createElement('input');
+        statusInputHidden.type = 'hidden';
+        statusInputHidden.name = 'status';
+        statusInputHidden.value = statusSelect ? statusSelect.value : 'all';
+        form.appendChild(statusInputHidden);
         
-        const designationInput = document.createElement('input');
-        designationInput.type = 'hidden';
-        designationInput.name = 'designation_filter';
-        designationInput.value = '{{ designation_filter }}';
-        form.appendChild(designationInput);
+        const designationInputHidden = document.createElement('input');
+        designationInputHidden.type = 'hidden';
+        designationInputHidden.name = 'designation_filter';
+        designationInputHidden.value = designationInput ? designationInput.value : '';
+        form.appendChild(designationInputHidden);
         
         document.body.appendChild(form);
         form.submit();

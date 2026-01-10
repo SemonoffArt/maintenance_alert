@@ -29,17 +29,32 @@ def _build_items_list(dfs, status_label: str):
     for df in dfs:
         for _, row in df.iterrows():
             item_type = row.get("Тип", "")
-            designation = row.get("Обозначение", "")
-            object_name = row.get("Объект", "")
-            row_number = row.get("№", "")  # Get the unique row number from column A
+            row_number = row.get("№", "")
+
+            # Try both possible column names where they differ between docs/Excel
+            location = row.get("Место расположения", "") or row.get("Расположение", "")
+            interval_days = row.get("Интервал ТО (дней)", "") or row.get("Интервал ТО", "")
+            reminder_days = row.get("Напоминание (за дней)", "") or row.get("Напоминание", "")
+
             items.append(
                 {
+                    # For filtering / actions
                     "type": item_type,
-                    "status": status_label,
-                    "designation": designation,
-                    "object": object_name,
+                    "status": status_label,  # 'urgent' or 'warning'
                     "row_number": row_number,
-                    "html": maintenance_checker.format_item_info(row, item_type),
+
+                    # Columns for the table
+                    "number": row.get("№", ""),
+                    "object": row.get("Объект", ""),
+                    "name": row.get("Наименование", ""),
+                    "designation": row.get("Обозначение", ""),
+                    "location": location,
+                    "works": row.get("Работы", ""),
+                    "interval_days": interval_days,
+                    "reminder_days": reminder_days,
+                    "last_date": row.get("Дата последнего ТО", ""),
+                    "next_date": row.get("Дата следующего ТО", ""),
+                    "status_text": row.get("Статус", ""),
                 }
             )
     return items
@@ -126,12 +141,17 @@ def dashboard():
         status_counts=status_counts,
         total_records=total_records,
         unserviced_percentage=unserviced_percentage,
-        urgent_items=filtered_urgent,
-        warning_items=filtered_warning,
+
+        # Full datasets (JS will filter them on the client)
+        urgent_items=urgent_list,
+        warning_items=warning_list,
+
+        # For counters and initial state
         total_urgent=total_urgent,
         total_warning=total_warning,
         filtered_urgent_count=filtered_urgent_count,
         filtered_warning_count=filtered_warning_count,
+
         sheet_type=sheet_type,
         status_filter=status_filter,
         designation_filter=designation_filter,
@@ -362,4 +382,4 @@ def mark_bulk_serviced():
 if __name__ == "__main__":
     # Разрешаем доступ из сети (0.0.0.0 слушает все интерфейсы)
     # Приложение будет доступно по IP сервера в сети 10.100.56.x
-    app.run(host='0.0.0.0', port=5940, debug=False)
+    app.run(host='0.0.0.0', port=5940, debug=True)
