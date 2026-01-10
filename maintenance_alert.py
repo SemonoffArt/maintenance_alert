@@ -508,6 +508,32 @@ class MaintenanceChecker:
 </div>
 """
 
+    def format_item_table_row(self, item: pd.Series, bg_color: str) -> str:
+        """Форматирует строку таблицы для элемента (аналогично web-интерфейсу)."""
+        # Получаем значения, обрабатывая NaN
+        works = self.format_field_value(item['Работы']) if not pd.isna(item['Работы']) else ''
+        
+        # Форматируем интервал как целое число
+        interval_days = int(item['Интервал ТО (дней)']) if not pd.isna(item['Интервал ТО (дней)']) else ''
+        
+        # Определяем цвет статуса
+        status = item['Статус']
+        status_color = '#e74c3c' if status == self.config.STATUS_URGENT else '#f39c12'
+        
+        return f"""
+                    <tr style='background-color: {bg_color};'>
+                        <td style='padding:8px; border:1px solid #cfd8dc;'>{item['Объект']}</td>
+                        <td style='padding:8px; border:1px solid #cfd8dc;'>{item['Наименование']}</td>
+                        <td style='padding:8px; border:1px solid #cfd8dc;'><strong>{item['Обозначение']}</strong></td>
+                        <td style='padding:8px; border:1px solid #cfd8dc;'>{item['Место расположения']}</td>
+                        <td style='padding:8px; border:1px solid #cfd8dc;'>{works}</td>
+                        <td style='padding:8px; border:1px solid #cfd8dc;'>{interval_days}</td>
+                        <td style='padding:8px; border:1px solid #cfd8dc;'>{self.format_date(item['Дата последнего ТО'])}</td>
+                        <td style='padding:8px; border:1px solid #cfd8dc;'>{self.format_date(item['Дата следующего ТО'])}</td>
+                        <td style='padding:8px; border:1px solid #cfd8dc;'><div style='font-weight:bold; color:{status_color};'>{status}</div></td>
+                    </tr>
+"""
+
 # --- 5. Статистика ---
 class StatisticsManager:
     """Класс для управления статистикой обслуживания."""
@@ -851,6 +877,10 @@ class ReportGenerator:
         unserviced_count = status_counts[self.config.STATUS_URGENT] #+ status_counts[self.config.STATUS_WARNING]
         unserviced_percentage = (unserviced_count / total_records * 100) if total_records > 0 else 0
         html_parts: List[str] = []
+        
+        # Обертка для всей почты, чтобы ограничить ширину и выровнять элементы
+        html_parts.append("<div style='width: 100%; max-width: 1200px; font-family: Segoe UI, Tahoma, Geneva, Verdana, sans-serif;'>")
+        
         # Предупреждение о неудачном пересчете формул
         if not recalc_success:
             html_parts.append(
@@ -893,7 +923,9 @@ class ReportGenerator:
                         <div style="font-size: 20px; font-weight: bold; color: #4fc3f7;">{total_records}</div>
                     </div>
                     <div style="margin-left: 25px;">
-                        <img src="cid:app_icon" alt="Иконка приложения" style="width: 52px; height: 52px; border-radius: 8px;">
+                        <a href="http://10.100.59.40:5940/" title="Перейти в панель управления">
+                            <img src="cid:app_icon" alt="Иконка приложения" style="width: 52px; height: 52px; border-radius: 8px; border: none;">
+                        </a>
                     </div>
                 </div>
             </div>
@@ -906,36 +938,79 @@ class ReportGenerator:
         if chart_path and Path(chart_path).exists():
             html_parts.append(
                 (
-                    "<div>"
-                    "<img src=\"cid:status_chart\" alt=\"Диаграмма\"/>"
-                    "</div><br/>"
+                    "<div style='margin-bottom: 20px;'>"
+                    "<img src=\"cid:status_chart\" alt=\"Диаграмма\" style='width: 100%; display: block; border-radius: 8px;'/>"
+                    "</div>"
                 )
             )
-        bg_colors = [ "#F9FCFF", "#ffffff"]
-        # Срочные элементы с чередующимся фоном
-        if urgent_items:
-            total_urgent = sum(len(df) for df in urgent_items)
-            html_parts.append(f"<div><strong style='color:#e74c3c;'>🚨 ОБСЛУЖИТЬ (записей: {total_urgent}):</strong></div>")
-            html_parts.append("<hr style='background-color: #e74c3c; height: 1px; border: none;' />")
-            color_index = 0
-            for urgent_df in urgent_items:
-                for _, item in urgent_df.iterrows():
-                    bg_color = bg_colors[color_index % len(bg_colors)]
-                    html_parts.append(f"<div style='background-color: {bg_color}; margin-left: 0px; padding: 10px; padding-left: 25px;'>" + self.maintenance_checker.format_item_info(item, item['Тип']) + "</div>")
+        # Срочные и внимание элементы в раздельных таблицах
+        if urgent_items or warning_items:
+            total_urgent = sum(len(df) for df in urgent_items) if urgent_items else 0
+            total_warning = sum(len(df) for df in warning_items) if warning_items else 0
+            
+            # 1. Срочные элементы
+            if urgent_items:
+                html_parts.append(f"<div><strong style='color:#e74c3c;'>🚨 ОБСЛУЖИТЬ (записей: {total_urgent}):</strong></div>")
+                html_parts.append("<hr style='background-color: #e74c3c; height: 2px; border: none;' />")
+                html_parts.append("""
+                <table style='width:100%; border-collapse:collapse; font-size:13px; margin-top:10px; margin-bottom:20px;'>
+                    <thead>
+                        <tr style='background-color:#2c3e50; color:white;'>
+                            <th style='padding:10px; text-align:left; border:1px solid #cfd8dc;'>Объект</th>
+                            <th style='padding:10px; text-align:left; border:1px solid #cfd8dc;'>Наименование</th>
+                            <th style='padding:10px; text-align:left; border:1px solid #cfd8dc;'>Обозначение</th>
+                            <th style='padding:10px; text-align:left; border:1px solid #cfd8dc;'>Место расположения</th>
+                            <th style='padding:10px; text-align:left; border:1px solid #cfd8dc;'>Работы</th>
+                            <th style='padding:10px; text-align:left; border:1px solid #cfd8dc;'>Инт. ТО</th>
+                            <th style='padding:10px; text-align:left; border:1px solid #cfd8dc;'>Дата ТО</th>
+                            <th style='padding:10px; text-align:left; border:1px solid #cfd8dc;'>Дата след. ТО</th>
+                            <th style='padding:10px; text-align:left; border:1px solid #cfd8dc;'>Статус</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                """)
+                
+                combined_urgent = pd.concat(urgent_items).sort_values(by='Объект')
+                color_index = 0
+                for _, item in combined_urgent.iterrows():
+                    bg_color = '#ffffff' if color_index % 2 == 0 else '#f9f9f9'
+                    html_parts.append(self.maintenance_checker.format_item_table_row(item, bg_color))
                     color_index += 1
-        # Элементы требующие внимания с чередующимся фоном
-        if warning_items:
-            total_warning = sum(len(df) for df in warning_items)
-            html_parts.append(f"<div><br/><strong style='color:#f39c12;'>⚠️ ВНИМАНИЕ! Приближается срок обслуживания. (записей: {total_warning}):</strong></div>")
-            html_parts.append("<hr style='background-color: #f39c12; height: 1px; border: none;' />")
-            color_index = 0
-            for warning_df in warning_items:
-                for _, item in warning_df.iterrows():
-                    bg_color = bg_colors[color_index % len(bg_colors)]
-                    html_parts.append(f"<div style='background-color: {bg_color}; margin-left: 0px; padding: 10px; padding-left: 25px;'>" + self.maintenance_checker.format_item_info(item, item['Тип']) + "</div>")
+                
+                html_parts.append("</tbody></table>")
+            
+            # 2. Элементы требующие внимания
+            if warning_items:
+                html_parts.append(f"<div><strong style='color:#f39c12;'>⚠️ ВНИМАНИЕ! Приближается срок обслуживания (записей: {total_warning}):</strong></div>")
+                html_parts.append("<hr style='background-color: #f39c12; height: 2px; border: none;' />")
+                html_parts.append("""
+                <table style='width:100%; border-collapse:collapse; font-size:13px; margin-top:10px; margin-bottom:20px;'>
+                    <thead>
+                        <tr style='background-color:#2c3e50; color:white;'>
+                            <th style='padding:10px; text-align:left; border:1px solid #cfd8dc;'>Объект</th>
+                            <th style='padding:10px; text-align:left; border:1px solid #cfd8dc;'>Наименование</th>
+                            <th style='padding:10px; text-align:left; border:1px solid #cfd8dc;'>Обозначение</th>
+                            <th style='padding:10px; text-align:left; border:1px solid #cfd8dc;'>Место расположения</th>
+                            <th style='padding:10px; text-align:left; border:1px solid #cfd8dc;'>Работы</th>
+                            <th style='padding:10px; text-align:left; border:1px solid #cfd8dc;'>Инт. ТО</th>
+                            <th style='padding:10px; text-align:left; border:1px solid #cfd8dc;'>Дата ТО</th>
+                            <th style='padding:10px; text-align:left; border:1px solid #cfd8dc;'>Дата след. ТО</th>
+                            <th style='padding:10px; text-align:left; border:1px solid #cfd8dc;'>Статус</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                """)
+                
+                combined_warning = pd.concat(warning_items).sort_values(by='Объект')
+                color_index = 0
+                for _, item in combined_warning.iterrows():
+                    bg_color = '#ffffff' if color_index % 2 == 0 else '#f9f9f9'
+                    html_parts.append(self.maintenance_checker.format_item_table_row(item, bg_color))
                     color_index += 1
-                    # Добавил отступ между записями
-                    html_parts.append("<br/>")
+                
+                html_parts.append("</tbody></table>")
+            
+            html_parts.append("<br/>")
         # нижняя часть письма
         html_parts.append(
             f"""
@@ -957,6 +1032,7 @@ class ReportGenerator:
                     <span style="margin-left: 15px;">📊 Таблица:</span> <code>{self.config.get_excel_file_path()}</code><br/>
                     <span style="margin-left: 15px;">🐍 Скрипт:</span> <code>{Path(__file__).resolve()}</code> <br/>
                     <span style="">⏰ Запуск:</span> Ежедневно из Task Scheduler, правило: <code>maintenance_alert.py</code><br/>
+                    <span style="">🖥️ Панель управления:</span> <a href="http://10.100.59.40:5940/" style="color: #18bc9c; text-decoration: none;">http://10.100.59.40:5940/</a><br/>
                     <span style="">🌐 Исходный код:</span> <a href="https://github.com/SemonoffArt/maintenance_alert" style="color: #18bc9c; text-decoration: none;">GitHub репозиторий</a><br/>
                     <span style="">📧 Получатели ({len(self.config.RECIPIENTS)}):</span> {', '.join(self.config.RECIPIENTS)}<br/>
                     <div style="text-align: right; margin-top: 5px; color: #2c3e50; font-size: 10px;">
@@ -966,6 +1042,7 @@ class ReportGenerator:
             </div>
             """
         )
+        html_parts.append("</div>") # Закрытие общей обертки
         html_body = "".join(html_parts)
         return html_body, chart_path
 
