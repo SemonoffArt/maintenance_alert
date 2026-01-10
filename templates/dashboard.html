@@ -265,6 +265,11 @@
                 <label for="designation" style="font-size:13px; margin-right:4px;">Фильтр:</label>
                 <input type="text" name="designation" id="designation" value="{{ designation_filter }}" placeholder="Поиск..." style="padding:4px 8px; border-radius:4px; border:1px solid #cfd8dc; font-size:13px; width:200px;">
             </div>
+            <div>
+                <button type="button" id="reset-filters-btn" class="btn btn-secondary" style="padding:4px 12px; font-size:13px; background-color:#95a5a6; border:none; color:white; border-radius:4px; cursor:pointer;" title="Сбросить все фильтры">
+                    🔄 Сбросить
+                </button>
+            </div>
             <!-- <div>
                 <button type="submit" class="btn btn-primary">Применить фильтры</button>
             </div> -->
@@ -431,7 +436,7 @@
     const objectSelect = document.getElementById('object');
     const statusSelect = document.getElementById('status');
     const designationInput = document.getElementById('designation');
-
+    const resetBtn = document.getElementById('reset-filters-btn');
     const rows = document.querySelectorAll('#equipment-tbody tr.equipment-row');
     const urgentCounterEl = document.getElementById('urgent-counter');
     const warningCounterEl = document.getElementById('warning-counter');
@@ -511,6 +516,15 @@
     }
     if (designationInput) {
         designationInput.addEventListener('input', applyFilters);
+    }
+
+    if (resetBtn) {
+        resetBtn.addEventListener('click', function() {
+            if (objectSelect) objectSelect.value = 'all';
+            if (statusSelect) statusSelect.value = 'all';
+            if (designationInput) designationInput.value = '';
+            applyFilters();
+        });
     }
 
     // Keep hidden filter fields in single-item "Обслужено" forms in sync with current filters
