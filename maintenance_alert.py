@@ -1004,7 +1004,7 @@ class ReportGenerator:
                 combined_warning = pd.concat(warning_items).sort_values(by='Объект')
                 color_index = 0
                 for _, item in combined_warning.iterrows():
-                    bg_color = '#ffffff' if color_index % 2 == 0 else '#f9f9f9'
+                    bg_color = '#fffdf0' if color_index % 2 == 0 else '#fff9e6'
                     html_parts.append(self.maintenance_checker.format_item_table_row(item, bg_color))
                     color_index += 1
                 

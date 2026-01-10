@@ -24,7 +24,7 @@
     <div style="display:flex; align-items:center;">
         <div style="margin-right:15px; font-size:32px;">✅</div>
         <div>
-            <div style="font-weight:bold; margin-bottom:5px;">✅ Успешно обслужено!</div>
+            <div style="font-weight:bold; margin-bottom:5px;">✅ Таблица успешно обновлена!</div>
             <div>{{ serviced_message }}</div>
         </div>
     </div>
@@ -34,7 +34,7 @@
     <div style="display:flex; align-items:center;">
         <div style="margin-right:15px; font-size:32px;">❌</div>
         <div>
-            <div style="font-weight:bold; margin-bottom:5px;">❌ Ошибка при обновлении</div>
+            <div style="font-weight:bold; margin-bottom:5px;">❌ Ошибка при обновлении таблицы</div>
             <div>{{ serviced_message }}</div>
         </div>
     </div>
@@ -242,7 +242,7 @@
     <div class="section-title">
         📋 Оборудование, требующее обслуживания
     </div>
-    <div class="filters-row">
+    <div class="filters-row" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
         <form id="filters-form" method="get" action="{{ url_for('dashboard') }}" style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
             <div>
                 <label for="object" style="font-size:13px; margin-right:4px;">Объект:</label>
@@ -262,15 +262,20 @@
                 </select>
             </div> -->
             <div>
-                <label for="designation" style="font-size:13px; margin-right:4px;">Фильтр поиска:</label>
-                <input type="text" name="designation" id="designation" value="{{ designation_filter }}" placeholder="Поиск..." style="padding:4px 8px; border-radius:4px; border:1px solid #cfd8dc; font-size:13px; width:150px;">
+                <label for="designation" style="font-size:13px; margin-right:4px;">Фильтр:</label>
+                <input type="text" name="designation" id="designation" value="{{ designation_filter }}" placeholder="Поиск..." style="padding:4px 8px; border-radius:4px; border:1px solid #cfd8dc; font-size:13px; width:200px;">
             </div>
             <!-- <div>
                 <button type="submit" class="btn btn-primary">Применить фильтры</button>
             </div> -->
         </form>
 
-
+        <button type="button"
+                id="bulk-serviced-btn-top"
+                class="btn btn-primary bulk-action-btn"
+                style="padding:6px 15px; font-size:12px; font-weight:bold; background-color:#e74c3c; border:none; margin-bottom: 5px;">
+            ✅ Отметить выбранное как обслуженное
+        </button>
     </div>
 
     <div style="overflow-x:auto; margin-top:10px;">
@@ -346,7 +351,7 @@
                     data-designation="{{ item.designation }}"
                     data-location="{{ item.location }}"
                     data-works="{{ item.works }}"
-                    style="background-color: {{ loop.cycle('#ffffff', '#f9f9f9') }};">
+                    style="background-color: {{ loop.cycle('#fffdf0', '#fff9e6') }};">
                     <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.object }}</td>
                     <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.name }}</td>
                     <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.designation }}</td>
@@ -391,7 +396,7 @@
     <div style="padding:10px; text-align:right; margin-top:10px; border-top:1px solid #eceff1;">
         <button type="button"
                 id="bulk-serviced-btn"
-                class="btn btn-primary"
+                class="btn btn-primary bulk-action-btn"
                 style="padding:8px 20px; font-size:14px; font-weight:bold; background-color:#e74c3c; border:none;">
             ✅ Отметить выбранное как обслуженное
         </button>
@@ -536,7 +541,7 @@
 <script>
 // Bulk serviced action for selected equipment
 (function() {
-    const bulkBtn = document.getElementById('bulk-serviced-btn');
+    const bulkBtns = document.querySelectorAll('.bulk-action-btn');
 
     const objectSelect = document.getElementById('object');
     const statusSelect = document.getElementById('status');
@@ -606,11 +611,9 @@
         form.submit();
     }
     
-    if (bulkBtn) {
-        bulkBtn.addEventListener('click', function() {
-            processBulkServiced();
-        });
-    }
+    bulkBtns.forEach(btn => {
+        btn.addEventListener('click', processBulkServiced);
+    });
 })();
 </script>
 
