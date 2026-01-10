@@ -459,14 +459,22 @@
 
             let visible = true;
 
-            // Global search in multiple fields
+            // Global search in multiple fields with OR logic for space-separated keywords
             if (searchVal) {
-                const match = rowObj.includes(searchVal) || 
-                              rowName.includes(searchVal) || 
-                              rowDesignation.includes(searchVal) || 
-                              rowLocation.includes(searchVal) || 
-                              rowWorks.includes(searchVal);
-                if (!match) visible = false;
+                // Split search terms by space and filter out empty strings
+                const searchTerms = searchVal.split(/\s+/).filter(term => term.length > 0);
+                
+                if (searchTerms.length > 0) {
+                    // Check if ANY search term matches ANY field
+                    const match = searchTerms.some(term => 
+                        rowObj.includes(term) || 
+                        rowName.includes(term) || 
+                        rowDesignation.includes(term) || 
+                        rowLocation.includes(term) || 
+                        rowWorks.includes(term)
+                    );
+                    if (!match) visible = false;
+                }
             }
 
             // Object dropdown filter
