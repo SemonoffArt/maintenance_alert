@@ -1,4 +1,6 @@
+import json
 from pathlib import Path
+from datetime import datetime, date
 
 from flask import Flask, render_template, request, redirect, url_for, send_file
 
@@ -24,6 +26,22 @@ report_generator = ReportGenerator(config, logger, maintenance_checker, statisti
 email_sender = EmailSender(config, logger)
 
 
+def _format_date(date_val):
+    """Форматирует дату в dd.mm.yy."""
+    if not date_val:
+        return ""
+    if isinstance(date_val, (datetime, date)):
+        return date_val.strftime("%d.%m.%y")
+    if isinstance(date_val, str):
+        try:
+            # Пытаемся распарсить стандартный формат DD.MM.YYYY
+            dt = datetime.strptime(date_val, "%d.%m.%Y")
+            return dt.strftime("%d.%m.%y")
+        except ValueError:
+            return date_val
+    return str(date_val)
+
+
 def _build_items_list(dfs, status_label: str):
     items = []
     for df in dfs:
@@ -34,7 +52,13 @@ def _build_items_list(dfs, status_label: str):
             # Try both possible column names where they differ between docs/Excel
             location = row.get("Место расположения", "") or row.get("Расположение", "")
             interval_days = row.get("Интервал ТО (дней)", "") or row.get("Интервал ТО", "")
-            reminder_days = row.get("Напоминание (за дней)", "") or row.get("Напоминание", "")
+            
+            # Приводим к целому числу (без знака после запятой)
+            try:
+                if interval_days != "" and interval_days is not None:
+                    interval_days = int(float(interval_days))
+            except (ValueError, TypeError):
+                pass
 
             items.append(
                 {
@@ -44,16 +68,14 @@ def _build_items_list(dfs, status_label: str):
                     "row_number": row_number,
 
                     # Columns for the table
-                    "number": row.get("№", ""),
                     "object": row.get("Объект", ""),
                     "name": row.get("Наименование", ""),
                     "designation": row.get("Обозначение", ""),
                     "location": location,
                     "works": row.get("Работы", ""),
                     "interval_days": interval_days,
-                    "reminder_days": reminder_days,
-                    "last_date": row.get("Дата последнего ТО", ""),
-                    "next_date": row.get("Дата следующего ТО", ""),
+                    "last_date": _format_date(row.get("Дата последнего ТО", "")),
+                    "next_date": _format_date(row.get("Дата следующего ТО", "")),
                     "status_text": row.get("Статус", ""),
                 }
             )
@@ -75,7 +97,6 @@ def dashboard():
     chart_offset = 0
     if chart_date:
         try:
-            from datetime import datetime
             selected_date = datetime.strptime(chart_date, "%Y-%m-%d").date()
             today = datetime.now().date()
             chart_offset = (selected_date - today).days
@@ -85,7 +106,6 @@ def dashboard():
     
     # If no date specified, use today's date
     if not chart_date:
-        from datetime import datetime
         chart_date = datetime.now().strftime("%Y-%m-%d")
 
     urgent_items, warning_items, total_records, status_counts, recalc_success = excel_handler.read_data()
@@ -302,8 +322,6 @@ def mark_bulk_serviced():
     Отмечает несколько единиц оборудования как обслуженное.
     Принимает JSON-массив items с объектами {sheet_name, designation}
     """
-    import json
-    
     items_json = request.form.get("items", "[]")
     object_filter = request.form.get("object", "all")
     status_filter = request.form.get("status", "all")
