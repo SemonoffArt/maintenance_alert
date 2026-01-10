@@ -226,14 +226,14 @@
                     {% endfor %}
                 </select>
             </div>
-            <div>
+            <!-- <div>
                 <label for="status" style="font-size:13px; margin-right:4px;">Статус:</label>
                 <select name="status" id="status">
                     <option value="all" {% if status_filter == "all" %}selected{% endif %}>Все</option>
                     <option value="urgent" {% if status_filter == "urgent" %}selected{% endif %}>ОБСЛУЖИТЬ</option>
                     <option value="warning" {% if status_filter == "warning" %}selected{% endif %}>Внимание</option>
                 </select>
-            </div>
+            </div> -->
             <div>
                 <label for="designation" style="font-size:13px; margin-right:4px;">Фильтр поиска:</label>
                 <input type="text" name="designation" id="designation" value="{{ designation_filter }}" placeholder="Поиск..." style="padding:4px 8px; border-radius:4px; border:1px solid #cfd8dc; font-size:13px; width:150px;">
@@ -265,9 +265,9 @@
                     <th style="padding:10px; text-align:left; border:1px solid #cfd8dc;">Обозначение</th>
                     <th style="padding:10px; text-align:left; border:1px solid #cfd8dc;">Место расположения</th>
                     <th style="padding:10px; text-align:left; border:1px solid #cfd8dc;">Работы</th>
-                    <th style="padding:10px; text-align:left; border:1px solid #cfd8dc;">Интервал ТО (дней)</th>
-                    <th style="padding:10px; text-align:left; border:1px solid #cfd8dc;">Дата последнего ТО</th>
-                    <th style="padding:10px; text-align:left; border:1px solid #cfd8dc;">Дата следующего ТО</th>
+                    <th style="padding:10px; text-align:left; border:1px solid #cfd8dc;">Инт. ТО</th>
+                    <th style="padding:10px; text-align:left; border:1px solid #cfd8dc;">Дата ТО</th>
+                    <th style="padding:10px; text-align:left; border:1px solid #cfd8dc;">Дата след. ТО</th>
                     <th style="padding:10px; text-align:left; border:1px solid #cfd8dc;">Статус</th>
                 </tr>
             </thead>
@@ -373,16 +373,10 @@
 
     <div style="padding:10px; text-align:right; margin-top:10px; border-top:1px solid #eceff1;">
         <button type="button"
-                id="bulk-serviced-urgent-btn"
-                class="btn btn-danger"
-                style="padding:8px 20px; font-size:14px; font-weight:bold;">
-            ✅ Обслужено всё выбранное (СРОЧНО)
-        </button>
-        <button type="button"
-                id="bulk-serviced-warning-btn"
+                id="bulk-serviced-btn"
                 class="btn btn-primary"
-                style="padding:8px 20px; font-size:14px; font-weight:bold; background-color:#f39c12; border:none;">
-            ✅ Обслужено всё выбранное (Внимание)
+                style="padding:8px 20px; font-size:14px; font-weight:bold; background-color:#18bc9c; border:none;">
+            ✅ Отметить выбранное как обслуженное
         </button>
     </div>
 </div>
@@ -525,15 +519,14 @@
 <script>
 // Bulk serviced action for selected equipment
 (function() {
-    const bulkUrgentBtn = document.getElementById('bulk-serviced-urgent-btn');
-    const bulkWarningBtn = document.getElementById('bulk-serviced-warning-btn');
+    const bulkBtn = document.getElementById('bulk-serviced-btn');
 
     const objectSelect = document.getElementById('object');
     const statusSelect = document.getElementById('status');
     const designationInput = document.getElementById('designation');
     
-    function processBulkServiced(checkboxClass, listType) {
-        const checkboxes = document.querySelectorAll('.' + checkboxClass + ':checked');
+    function processBulkServiced() {
+        const checkboxes = document.querySelectorAll('.equipment-checkbox:checked');
         
         if (checkboxes.length === 0) {
             alert('Выберите хотя бы одно оборудование для обслуживания.');
@@ -596,15 +589,9 @@
         form.submit();
     }
     
-    if (bulkUrgentBtn) {
-        bulkUrgentBtn.addEventListener('click', function() {
-            processBulkServiced('urgent-checkbox', 'срочное');
-        });
-    }
-    
-    if (bulkWarningBtn) {
-        bulkWarningBtn.addEventListener('click', function() {
-            processBulkServiced('warning-checkbox', 'предупреждение');
+    if (bulkBtn) {
+        bulkBtn.addEventListener('click', function() {
+            processBulkServiced();
         });
     }
 })();
