@@ -235,12 +235,12 @@
                 </select>
             </div>
             <div>
-                <label for="designation" style="font-size:13px; margin-right:4px;">Обозначение:</label>
+                <label for="designation" style="font-size:13px; margin-right:4px;">Фильтр поиска:</label>
                 <input type="text" name="designation" id="designation" value="{{ designation_filter }}" placeholder="Поиск..." style="padding:4px 8px; border-radius:4px; border:1px solid #cfd8dc; font-size:13px; width:150px;">
             </div>
-            <div>
+            <!-- <div>
                 <button type="submit" class="btn btn-primary">Применить фильтры</button>
-            </div>
+            </div> -->
         </form>
 
         <form method="post" action="{{ url_for('send_email') }}" style="margin-left:auto;">
@@ -277,7 +277,10 @@
                     data-status-code="urgent"
                     data-status-text="{{ item.status_text }}"
                     data-object="{{ item.object }}"
+                    data-name="{{ item.name }}"
                     data-designation="{{ item.designation }}"
+                    data-location="{{ item.location }}"
+                    data-works="{{ item.works }}"
                     style="background-color: {{ loop.cycle('#f2f2f2', '#e8e8e8') }};">
                     <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.object }}</td>
                     <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.name }}</td>
@@ -322,7 +325,10 @@
                     data-status-code="warning"
                     data-status-text="{{ item.status_text }}"
                     data-object="{{ item.object }}"
+                    data-name="{{ item.name }}"
                     data-designation="{{ item.designation }}"
+                    data-location="{{ item.location }}"
+                    data-works="{{ item.works }}"
                     style="background-color: {{ loop.cycle('#ffffff', '#f9f9f9') }};">
                     <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.object }}</td>
                     <td style="padding:8px; border:1px solid #cfd8dc;">{{ item.name }}</td>
@@ -417,25 +423,38 @@
     function applyFilters() {
         const objVal = objectSelect ? objectSelect.value : 'all';
         const statusVal = statusSelect ? statusSelect.value : 'all';
-        const designationVal = designationInput ? designationInput.value.trim().toLowerCase() : '';
+        const searchVal = designationInput ? designationInput.value.trim().toLowerCase() : '';
 
         let visibleUrgent = 0;
         let visibleWarning = 0;
 
         rows.forEach(function(row) {
-            const rowObj = row.getAttribute('data-object') || '';
-            const rowStatusCode = row.getAttribute('data-status-code'); // 'urgent' or 'warning'
+            const rowObj = (row.getAttribute('data-object') || '').toLowerCase();
+            const rowName = (row.getAttribute('data-name') || '').toLowerCase();
             const rowDesignation = (row.getAttribute('data-designation') || '').toLowerCase();
+            const rowLocation = (row.getAttribute('data-location') || '').toLowerCase();
+            const rowWorks = (row.getAttribute('data-works') || '').toLowerCase();
+            const rowStatusCode = row.getAttribute('data-status-code'); // 'urgent' or 'warning'
 
             let visible = true;
 
-            if (objVal !== 'all' && rowObj !== objVal) {
+            // Global search in multiple fields
+            if (searchVal) {
+                const match = rowObj.includes(searchVal) || 
+                              rowName.includes(searchVal) || 
+                              rowDesignation.includes(searchVal) || 
+                              rowLocation.includes(searchVal) || 
+                              rowWorks.includes(searchVal);
+                if (!match) visible = false;
+            }
+
+            // Object dropdown filter
+            if (visible && objVal !== 'all' && row.getAttribute('data-object') !== objVal) {
                 visible = false;
             }
-            if (statusVal !== 'all' && rowStatusCode !== statusVal) {
-                visible = false;
-            }
-            if (designationVal && !rowDesignation.includes(designationVal)) {
+
+            // Status dropdown filter
+            if (visible && statusVal !== 'all' && rowStatusCode !== statusVal) {
                 visible = false;
             }
 
