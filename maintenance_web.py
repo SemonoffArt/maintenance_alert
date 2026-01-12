@@ -404,4 +404,4 @@ def mark_bulk_serviced():
 if __name__ == "__main__":
     # Разрешаем доступ из сети (0.0.0.0 слушает все интерфейсы)
     # Приложение будет доступно по IP сервера в сети 10.100.56.x
-    app.run(host='0.0.0.0', port=5940, debug=True)
+    app.run(host='0.0.0.0', port=5940, debug=False)
