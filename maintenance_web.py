@@ -163,6 +163,17 @@ def dashboard():
 
     # Получаем записи об обслуживании за последние CHART_DAYS дней для дашборда
     serviced_records = serviced_equipment_manager.get_serviced_last_days(config.CHART_DAYS)
+    
+    # Группируем по датам
+    serviced_by_date = {}
+    for record in serviced_records:
+        date_str = record.get('date', '')
+        if date_str not in serviced_by_date:
+            serviced_by_date[date_str] = []
+        serviced_by_date[date_str].append(record)
+    
+    # Сортируем даты (свежие сверху)
+    serviced_by_date = dict(sorted(serviced_by_date.items(), reverse=True))
 
     return render_template(
         "dashboard.html",
@@ -193,6 +204,7 @@ def dashboard():
         serviced_status=serviced_status,
         serviced_message=serviced_message,
         serviced_records=serviced_records,
+        serviced_by_date=serviced_by_date,
     )
 
 
