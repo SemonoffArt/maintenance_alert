@@ -12,6 +12,7 @@ from maintenance_alert import (
     StatisticsManager,
     ReportGenerator,
     EmailSender,
+    ServicedEquipmentManager,
 )
 
 app = Flask(__name__)
@@ -24,6 +25,7 @@ maintenance_checker = MaintenanceChecker(config, logger)
 statistics_manager = StatisticsManager(config, logger)
 report_generator = ReportGenerator(config, logger, maintenance_checker, statistics_manager)
 email_sender = EmailSender(config, logger)
+serviced_equipment_manager = ServicedEquipmentManager(config, logger)
 
 
 def _format_date(date_val):
@@ -154,10 +156,13 @@ def dashboard():
     total_urgent = len(urgent_list)
     total_warning = len(warning_list)
 
-    # Use filtered counts for percentage if filters are applied? 
+    # Use filtered counts for percentage if filters are applied?
     # Actually, keep the global stats but maybe show filtered ones.
     unserviced_count = status_counts.get(config.STATUS_URGENT, 0)
     unserviced_percentage = (unserviced_count / total_records * 100) if total_records else 0.0
+
+    # Получаем записи об обслуживании за последние CHART_DAYS дней для дашборда
+    serviced_records = serviced_equipment_manager.get_serviced_last_days(config.CHART_DAYS)
 
     return render_template(
         "dashboard.html",
@@ -187,6 +192,7 @@ def dashboard():
         recalc_success=recalc_success,
         serviced_status=serviced_status,
         serviced_message=serviced_message,
+        serviced_records=serviced_records,
     )
 
 

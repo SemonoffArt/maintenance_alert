@@ -408,6 +408,41 @@
     </div>
 </div>
 
+{% if serviced_records and serviced_records|length > 0 %}
+<div class="card">
+    <div class="section-title">
+        📝 Журнал обслуженного оборудования (за последние {{ config.CHART_DAYS }} дней)
+    </div>
+    <div style="overflow-x:auto; margin-top:10px;">
+        <table style="width:100%; border-collapse:collapse; font-size:13px;">
+            <thead>
+                <tr style="background-color:#2c3e50; color:white;">
+                    <th style="padding:10px; text-align:left; border:1px solid #cfd8dc;">Дата</th>
+                    <th style="padding:10px; text-align:left; border:1px solid #cfd8dc;">Объект</th>
+                    <th style="padding:10px; text-align:left; border:1px solid #cfd8dc;">Обозначение</th>
+                    <th style="padding:10px; text-align:left; border:1px solid #cfd8dc;">Наименование</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in serviced_records %}
+                <tr style="background-color: {{ loop.cycle('#ffffff', '#f9f9f9') }};">
+                    <td style="padding:8px; border:1px solid #cfd8dc;">
+                        {{ record.date[:10] if record.date else '' }}
+                    </td>
+                    <td style="padding:8px; border:1px solid #cfd8dc;">{{ record.object }}</td>
+                    <td style="padding:8px; border:1px solid #cfd8dc;"><strong>{{ record.designation }}</strong></td>
+                    <td style="padding:8px; border:1px solid #cfd8dc;">{{ record.name }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div style="padding:10px; text-align:right; margin-top:10px; border-top:1px solid #eceff1; font-size:12px; color:#7f8c8d;">
+        Всего записей: {{ serviced_records|length }}
+    </div>
+</div>
+{% endif %}
+
 <div class="card" style="background-color:#ffffff; border-left:4px solid #18bc9c; font-size:11px; color:#333;">
     <div style="margin-bottom:8px;">
         <span style="font-weight:bold; color:#2c3e50;">

@@ -21,8 +21,8 @@ from typing import Dict, List, Tuple, Optional, Any, NamedTuple
 # --- 1. Конфигурация и константы ---
 class Config:
     """Класс для хранения всех конфигурационных данных."""
-    VERSION = "2.5.1"
-    RELEASE_DATE = "10.01.2026"
+    VERSION = "2.6.0"
+    RELEASE_DATE = "27.03.2026"
 
     PROGRAM_DIR = Path(__file__).parent.absolute()
     DATA_DIR = PROGRAM_DIR / "data"
@@ -32,6 +32,8 @@ class Config:
 
     EXCEL_FILENAME = "Обслуживание ПК и шкафов АСУТП.xlsx"
     HISTORY_FILE = DATA_DIR / "maintenance_alert_history.json"
+    SERVICED_HISTORY_FILE = DATA_DIR / "serviced_history.json"
+    EXCEL_SNAPSHOT_FILE = DATA_DIR / "excel_snapshot.json"
 
     SMTP_SERVER = "mgd-ex1.pavlik-gold.ru"
     SMTP_PORT = 25
@@ -329,7 +331,13 @@ class ExcelHandler:
             except Exception as e:
                 self.logger.log(f"Ошибка при чтении листа {sheet_name}: {e}")
 
+        # Сохраняем путь к файлу для последующего использования
+        self.last_excel_file_path = excel_file_to_use
         return urgent_items, warning_items, total_records, status_counts, recalc_success
+
+    def get_last_excel_file_path(self) -> Path:
+        """Возвращает путь к последнему использованному Excel файлу."""
+        return getattr(self, 'last_excel_file_path', self.config.get_excel_file_path())
 
     def is_file_locked(self, file_path: Path) -> bool:
         """
@@ -858,14 +866,317 @@ class StatisticsManager:
             self.logger.log(f"❌ Не удалось построить диаграмму: {e}")
             return None
 
+# --- 5.1. Управление обслуженным оборудованием ---
+class ServicedEquipmentManager:
+    """Класс для управления историей обслуженного оборудования."""
+    
+    def __init__(self, config: Config, logger: DualLogger):
+        self.config = config
+        self.logger = logger
+        self.serviced_history_file = config.SERVICED_HISTORY_FILE
+        self.excel_snapshot_file = config.EXCEL_SNAPSHOT_FILE
+    
+    # === Работа со снимком дат ТО ===
+    def load_snapshot(self) -> Dict[str, str]:
+        """Загружает снимок дат ТО из JSON файла.
+        
+        Returns:
+            Словарь: ключ = "sheet:row_number", значение = дата ТО (str)
+        """
+        try:
+            if self.excel_snapshot_file.exists():
+                with open(self.excel_snapshot_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    return data.get('snapshot', {})
+            return {}
+        except Exception as e:
+            self.logger.log(f"⚠️ Ошибка при загрузке снимка: {e}")
+            return {}
+    
+    def save_snapshot(self, snapshot: Dict[str, str]) -> None:
+        """Сохраняет снимок дат ТО в JSON файл."""
+        try:
+            self.config.DATA_DIR.mkdir(parents=True, exist_ok=True)
+            with open(self.excel_snapshot_file, 'w', encoding='utf-8') as f:
+                json.dump({
+                    'snapshot': snapshot,
+                    'last_update': datetime.now().isoformat()
+                }, f, ensure_ascii=False, indent=2)
+            self.logger.log(f"✅ Снимок дат ТО сохранён: {len(snapshot)} записей")
+        except Exception as e:
+            self.logger.log(f"❌ Ошибка при сохранении снимка: {e}")
+    
+    def create_snapshot(self, excel_file_path: Path) -> Dict[str, str]:
+        """Создаёт снимок дат ТО из всех данных Excel.
+
+        Args:
+            excel_file_path: Путь к Excel файлу
+            
+        Returns:
+            Словарь: ключ = "sheet:row_number", значение = дата последнего ТО (str)
+        """
+        snapshot = {}
+        
+        try:
+            # Читаем все листы напрямую из Excel
+            for sheet_name in self.config.SHEETS_CONFIG.keys():
+                # Читаем данные из Excel
+                df = pd.read_excel(excel_file_path, sheet_name=sheet_name, header=3, nrows=500)
+                
+                if len(df.columns) > len(self.config.COLUMN_NAMES):
+                    df = df.iloc[:, :len(self.config.COLUMN_NAMES)]
+                df.columns = self.config.COLUMN_NAMES
+                df = df.dropna(how='all')
+                
+                # Проходим по всем строкам
+                for _, row in df.iterrows():
+                    row_num = row.get('№')
+                    if pd.isna(row_num):
+                        continue
+                    
+                    try:
+                        row_num = int(float(row_num))
+                    except (ValueError, TypeError):
+                        continue
+                    
+                    key = f"{sheet_name}:{row_num}"
+                    last_date = row.get('Дата последнего ТО')
+                    
+                    if pd.notna(last_date):
+                        if hasattr(last_date, 'strftime'):
+                            snapshot[key] = last_date.strftime('%Y-%m-%d')
+                        else:
+                            snapshot[key] = str(last_date)
+                            
+        except Exception as e:
+            self.logger.log(f"⚠️ Ошибка при создании снимка: {e}")
+
+        return snapshot
+    
+    # === Работа с историей обслуженного оборудования ===
+    def load_serviced_history(self) -> Dict[str, Any]:
+        """Загружает историю обслуженного оборудования."""
+        try:
+            if self.serviced_history_file.exists():
+                with open(self.serviced_history_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            return {'serviced_equipment': [], 'last_update': None}
+        except Exception as e:
+            self.logger.log(f"⚠️ Ошибка при загрузке истории: {e}")
+            return {'serviced_equipment': [], 'last_update': None}
+    
+    def save_serviced_history(self, history: Dict[str, Any]) -> None:
+        """Сохраняет историю обслуженного оборудования."""
+        try:
+            self.config.DATA_DIR.mkdir(parents=True, exist_ok=True)
+            history['last_update'] = datetime.now().isoformat()
+            with open(self.serviced_history_file, 'w', encoding='utf-8') as f:
+                json.dump(history, f, ensure_ascii=False, indent=2)
+            self.logger.log(f"✅ История обслуженного оборудования сохранена")
+        except Exception as e:
+            self.logger.log(f"❌ Ошибка при сохранении истории: {e}")
+    
+    def add_serviced_records(self, new_records: List[Dict[str, Any]]) -> int:
+        """Добавляет новые записи в историю обслуженного оборудования.
+
+        Args:
+            new_records: Список записей для добавления
+
+        Returns:
+            Количество добавленных записей
+        """
+        if not new_records:
+            return 0
+
+        history = self.load_serviced_history()
+
+        # Добавляем новые записи
+        for record in new_records:
+            history['serviced_equipment'].append(record)
+            self.logger.log(f"📝 Добавлено в историю: {record['designation']} ({record['date']})")
+
+        # Очищаем старые записи (храним только за последние SERVICED_HISTORY_DAYS дней)
+        cutoff_date = (datetime.now().date() - timedelta(days=self.config.CHART_DAYS)).isoformat()
+        original_count = len(history['serviced_equipment'])
+        history['serviced_equipment'] = [
+            rec for rec in history['serviced_equipment']
+            if rec.get('date', '') >= cutoff_date
+        ]
+        if len(history['serviced_equipment']) < original_count:
+            self.logger.log(f"🗑️ Удалено {original_count - len(history['serviced_equipment'])} устаревших записей")
+
+        self.save_serviced_history(history)
+        return len(new_records)
+    
+    def detect_serviced_equipment(self, current_snapshot: Dict[str, str], 
+                                  previous_snapshot: Dict[str, str],
+                                  all_equipment_data: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Обнаруживает обслуженное оборудование путём сравнения снимков.
+        
+        Args:
+            current_snapshot: Текущий снимок дат ТО
+            previous_snapshot: Предыдущий снимок дат ТО
+            all_equipment_data: Данные обо всём оборудовании для заполнения записей
+                               ключ = "sheet:row_number"
+                               
+        Returns:
+            Список новых записей об обслуживании
+        """
+        new_records = []
+        today = datetime.now().date()
+        today_str = today.isoformat()
+        timestamp = datetime.now().isoformat()
+        
+        # Ищем записи, где дата ТО изменилась
+        for key, current_date in current_snapshot.items():
+            previous_date = previous_snapshot.get(key)
+            
+            # Если предыдущей даты нет (первый запуск) или даты разные и текущая больше
+            if previous_date is None:
+                continue  # Пропускаем записи, которых не было в предыдущем снимке
+            
+            if previous_date != current_date and current_date > previous_date:
+                # Получаем данные об оборудовании
+                equipment = all_equipment_data.get(key, {})
+                
+                if equipment:
+                    record = {
+                        'date': today_str,
+                        'timestamp': timestamp,
+                        'sheet': equipment.get('sheet', ''),
+                        'row': equipment.get('row', ''),
+                        'designation': equipment.get('designation', ''),
+                        'name': equipment.get('name', ''),
+                        'object': equipment.get('object', '')
+                    }
+                    new_records.append(record)
+        
+        return new_records
+    
+    def get_serviced_last_days(self, days: int = 7) -> List[Dict[str, Any]]:
+        """Получает записи об обслуживании за последние N дней.
+        
+        Args:
+            days: Количество дней
+            
+        Returns:
+            Список записей за указанный период
+        """
+        history = self.load_serviced_history()
+        cutoff_date = (datetime.now().date() - timedelta(days=days)).isoformat()
+        
+        filtered = [
+            record for record in history['serviced_equipment']
+            if record.get('date', '') >= cutoff_date
+        ]
+        
+        # Сортируем по дате (свежие сверху)
+        return sorted(filtered, key=lambda x: x.get('date', ''), reverse=True)
+    
+    def get_serviced_equipment_data(self, excel_file_path: Path) -> Dict[str, Dict[str, Any]]:
+        """Извлекает данные обо всём оборудовании для использования при детектировании.
+
+        Args:
+            excel_file_path: Путь к Excel файлу
+            
+        Returns:
+            Словарь: ключ = "sheet:row_number", значение = данные оборудования
+        """
+        equipment_data = {}
+        
+        try:
+            # Читаем все листы напрямую из Excel
+            for sheet_name in self.config.SHEETS_CONFIG.keys():
+                df = pd.read_excel(excel_file_path, sheet_name=sheet_name, header=3, nrows=500)
+                
+                if len(df.columns) > len(self.config.COLUMN_NAMES):
+                    df = df.iloc[:, :len(self.config.COLUMN_NAMES)]
+                df.columns = self.config.COLUMN_NAMES
+                df = df.dropna(how='all')
+                
+                for _, row in df.iterrows():
+                    row_num = row.get('№')
+                    if pd.isna(row_num):
+                        continue
+                    
+                    try:
+                        row_num = int(float(row_num))
+                    except (ValueError, TypeError):
+                        continue
+                    
+                    key = f"{sheet_name}:{row_num}"
+                    
+                    equipment_data[key] = {
+                        'sheet': sheet_name,
+                        'row': row_num,
+                        'designation': row.get('Обозначение', ''),
+                        'name': row.get('Наименование', ''),
+                        'object': row.get('Объект', '')
+                    }
+                    
+        except Exception as e:
+            self.logger.log(f"⚠️ Ошибка при извлечении данных оборудования: {e}")
+        
+        return equipment_data
+
 # --- 6. Генерация отчета ---
 class ReportGenerator:
     """Класс для генерации HTML-отчета."""
-    def __init__(self, config: Config, logger: DualLogger, maintenance_checker: MaintenanceChecker, statistics_manager: StatisticsManager):
+    def __init__(self, config: Config, logger: DualLogger, maintenance_checker: MaintenanceChecker, 
+                 statistics_manager: StatisticsManager, serviced_equipment_manager: ServicedEquipmentManager = None):
         self.config = config
         self.logger = logger
         self.maintenance_checker = maintenance_checker
         self.statistics_manager = statistics_manager
+        self.serviced_equipment_manager = serviced_equipment_manager
+
+    def _create_serviced_email_block(self, serviced_records: List[Dict[str, Any]]) -> str:
+        """Создаёт HTML-блок для обслуженного оборудования за последние 7 дней."""
+        if not serviced_records:
+            return ""
+        
+        # Группируем по датам
+        by_date = {}
+        for record in serviced_records:
+            date_str = record.get('date', '')
+            if date_str not in by_date:
+                by_date[date_str] = []
+            by_date[date_str].append(record)
+        
+        html_parts = []
+        html_parts.append("<br/>")
+        html_parts.append("<div style='background-color: #f8f9fa; border-radius: 8px; padding: 15px; border-left: 4px solid #18bc9c; margin-bottom: 20px;'>")
+        html_parts.append("<div style='font-size: 15px; font-weight: bold; color: #2c3e50; margin-bottom: 10px;'>📝 Обслужено за последние 7 дней</div>")
+        
+        for date_str in sorted(by_date.keys(), reverse=True):
+            records = by_date[date_str]
+            # Форматируем дату
+            try:
+                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                formatted_date = date_obj.strftime('%d.%m.%Y')
+            except:
+                formatted_date = date_str
+            
+            html_parts.append(f"<div style='font-size: 13px; font-weight: bold; color: #18bc9c; margin-top: 10px; margin-bottom: 5px;'>📅 {formatted_date} ({len(records)} ед.)</div>")
+            html_parts.append("<table style='width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed;'>")
+            html_parts.append("<thead><tr style='background-color: #e8f5e9;'>")
+            html_parts.append("<th style='padding: 6px; border: 1px solid #cfd8dc; text-align: left; width: 150px;'>Объект</th>")
+            html_parts.append("<th style='padding: 6px; border: 1px solid #cfd8dc; text-align: left; width: 200px;'>Обозначение</th>")
+            html_parts.append("<th style='padding: 6px; border: 1px solid #cfd8dc; text-align: left;'>Наименование</th>")
+            html_parts.append("</tr></thead>")
+            html_parts.append("<tbody>")
+
+            for rec in records:
+                html_parts.append("<tr>")
+                html_parts.append(f"<td style='padding: 6px; border: 1px solid #cfd8dc; color: #2c3e50; width: 150px;'>{rec.get('object', '')}</td>")
+                html_parts.append(f"<td style='padding: 6px; border: 1px solid #cfd8dc; font-weight: bold; color: #2c3e50; width: 200px;'>{rec.get('designation', '')}</td>")
+                html_parts.append(f"<td style='padding: 6px; border: 1px solid #cfd8dc; color: #2c3e50;'>{rec.get('name', '')}</td>")
+                html_parts.append("</tr>")
+            
+            html_parts.append("</tbody></table>")
+        
+        html_parts.append("</div>")
+        return "".join(html_parts)
 
     def create_body(self, urgent_items: List[pd.DataFrame],
                     warning_items: List[pd.DataFrame],
@@ -1009,8 +1320,15 @@ class ReportGenerator:
                     color_index += 1
                 
                 html_parts.append("</tbody></table>")
-            
+
             html_parts.append("<br/>")
+        
+        # Блок обслуженного оборудования за последние 7 дней
+        if self.serviced_equipment_manager:
+            serviced_records = self.serviced_equipment_manager.get_serviced_last_days(7)
+            if serviced_records:
+                html_parts.append(self._create_serviced_email_block(serviced_records))
+        
         # нижняя часть письма
         html_parts.append(
             f"""
@@ -1122,7 +1440,9 @@ class MaintenanceAlertApp:
         self.excel_handler = ExcelHandler(self.config, self.logger)
         self.maintenance_checker = MaintenanceChecker(self.config, self.logger)
         self.statistics_manager = StatisticsManager(self.config, self.logger)
-        self.report_generator = ReportGenerator(self.config, self.logger, self.maintenance_checker, self.statistics_manager)
+        self.serviced_equipment_manager = ServicedEquipmentManager(self.config, self.logger)
+        self.report_generator = ReportGenerator(self.config, self.logger, self.maintenance_checker, 
+                                                 self.statistics_manager, self.serviced_equipment_manager)
         self.email_sender = EmailSender(self.config, self.logger)
 
     def show_version(self):
@@ -1146,6 +1466,43 @@ class MaintenanceAlertApp:
         self.logger.log_separator()
         self.statistics_manager.update_statistics(alarm_items, warning_items, total_records, status_counts)
         self.logger.log_separator()
+
+        # === DETECTION OF SERVICED EQUIPMENT ===
+        self.logger.log("\n" + "="*60)
+        self.logger.log("🔍 ПОИСК ОБСЛУЖЕННОГО ОБОРУДОВАНИЯ")
+        self.logger.log_separator()
+
+        # Загружаем предыдущий снимок
+        previous_snapshot = self.serviced_equipment_manager.load_snapshot()
+        self.logger.log(f"📊 Загружен предыдущий снимок: {len(previous_snapshot)} записей")
+
+        # Получаем путь к Excel файлу (используется после read_data())
+        excel_file = self.excel_handler.get_last_excel_file_path()
+
+        # Создаём текущий снимок и получаем данные оборудования
+        current_snapshot = self.serviced_equipment_manager.create_snapshot(excel_file)
+        equipment_data = self.serviced_equipment_manager.get_serviced_equipment_data(excel_file)
+        self.logger.log(f"📊 Создан текущий снимок: {len(current_snapshot)} записей")
+        self.logger.log(f"📊 Получены данные оборудования: {len(equipment_data)} записей")
+
+        # Обнаруживаем изменения
+        new_records = self.serviced_equipment_manager.detect_serviced_equipment(
+            current_snapshot, previous_snapshot, equipment_data
+        )
+
+        if new_records:
+            self.logger.log(f"✅ Обнаружено {len(new_records)} ед. обслуженного оборудования:")
+            for rec in new_records:
+                self.logger.log(f"   - {rec['designation']} ({rec['object']})")
+            # Добавляем в историю
+            self.serviced_equipment_manager.add_serviced_records(new_records)
+        else:
+            self.logger.log("ℹ️ Новых записей об обслуживании не обнаружено")
+
+        # Сохраняем текущий снимок для следующего сравнения
+        self.serviced_equipment_manager.save_snapshot(current_snapshot)
+        self.logger.log_separator()
+        # === END OF SERVICED DETECTION ===
 
         total_alarm = sum(len(df) for df in alarm_items) if alarm_items else 0
         total_warning = sum(len(df) for df in warning_items) if warning_items else 0
@@ -1175,7 +1532,7 @@ class MaintenanceAlertApp:
         self.logger.log(f"\nОтправляем письмо {len(self.config.RECIPIENTS)} получателям...")
         if self.email_sender.send(email_body, self.config.RECIPIENTS, chart_path, maintenance_data_file):
             self.logger.log("Письма отправлены успешно")
-            
+
             # Удаляем временный файл maintenance_data.xlsx после успешной отправки
             if maintenance_data_file and maintenance_data_file.exists():
                 try:
