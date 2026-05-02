@@ -222,3 +222,6 @@ data/maintenance_status_chart.png
 data/maintenance_status_chart.png
 
 .qwen/
+data/excel_snapshot.json_old
+data/serviced_history.json_old
+data/maintenance_status_chart.png

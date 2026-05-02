@@ -8,8 +8,8 @@ cd /d "%~dp0"
 REM Log the execution start
 echo [%date% %time%] Starting maintenance_alert.py from directory: %cd%
 
-REM Run the Python script
-python "%~dp0maintenance_alert.py"
+REM Run the Python script via uv
+uv run "%~dp0maintenance_alert.py"
 
 REM Log the exit code
 echo [%date% %time%] Script finished with exit code: %errorlevel%
