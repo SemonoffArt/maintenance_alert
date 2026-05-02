@@ -329,7 +329,18 @@ def mark_serviced():
     success, message = excel_handler.mark_as_serviced(sheet_name, row_number)
     
     status_param = "success" if success else "error"
-    
+
+    # Сразу добавляем запись в журнал обслуженного оборудования
+    # (иначе она появится только после очередного запуска maintenance_alert.py)
+    if success:
+        try:
+            excel_file = config.get_excel_file_path()
+            serviced_equipment_manager.record_manual_service(
+                excel_file, [(sheet_name, row_number)]
+            )
+        except Exception as e:
+            logger.log(f"⚠️ Не удалось обновить журнал обслуженного оборудования: {e}")
+
     return redirect(url_for("dashboard", 
                            object=object_filter,
                            status=status_filter,
@@ -382,6 +393,7 @@ def mark_bulk_serviced():
     success_count = 0
     error_count = 0
     errors = []
+    serviced_items = []  # успешно обслуженные (sheet_name, row_number) для журнала
     
     for item in items:
         sheet_name = item.get("sheet_name", "").strip()
@@ -396,9 +408,17 @@ def mark_bulk_serviced():
         
         if success:
             success_count += 1
+            serviced_items.append((sheet_name, row_number))
         else:
             error_count += 1
-            errors.append(f"{designation}: {message}")
+            errors.append(f"№{row_number}: {message}")
+
+    # Сразу добавляем успешно обслуженные позиции в журнал и обновляем снимок
+    if serviced_items:
+        try:
+            serviced_equipment_manager.record_manual_service(file_path, serviced_items)
+        except Exception as e:
+            logger.log(f"⚠️ Не удалось обновить журнал обслуженного оборудования: {e}")
     
     # Prepare result message
     if error_count == 0:

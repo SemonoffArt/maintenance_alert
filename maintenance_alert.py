@@ -1119,6 +1119,94 @@ class ServicedEquipmentManager:
         
         return equipment_data
 
+    def record_manual_service(self, excel_file_path: Path,
+                              items: List[Tuple[str, int]]) -> int:
+        """Записывает в журнал факты ручной отметки «обслужено» через web-интерфейс.
+
+        Для каждого (sheet_name, row_number) формирует запись, добавляет её в
+        serviced_history.json (с дедупликацией по sheet+row+date за сегодняшний день)
+        и обновляет excel_snapshot.json, чтобы плановый запуск maintenance_alert.py
+        не породил дубль той же операции.
+
+        Args:
+            excel_file_path: Путь к Excel-файлу (для извлечения метаданных оборудования).
+            items: Список кортежей (sheet_name, row_number).
+
+        Returns:
+            Количество фактически добавленных (недублирующих) записей.
+        """
+        if not items:
+            return 0
+
+        equipment_data = self.get_serviced_equipment_data(excel_file_path)
+        history = self.load_serviced_history()
+        today_str = datetime.now().date().isoformat()
+        timestamp = datetime.now().isoformat()
+
+        # Индекс существующих записей за сегодня для дедупликации
+        existing_today = {
+            (rec.get('sheet', ''), str(rec.get('row', '')))
+            for rec in history.get('serviced_equipment', [])
+            if rec.get('date', '') == today_str
+        }
+
+        added = 0
+        for sheet_name, row_number in items:
+            try:
+                row_num_int = int(row_number)
+            except (ValueError, TypeError):
+                continue
+
+            dedup_key = (sheet_name, str(row_num_int))
+            if dedup_key in existing_today:
+                self.logger.log(
+                    f"ℹ️ Пропущено (уже в журнале за сегодня): {sheet_name} / №{row_num_int}"
+                )
+                continue
+
+            key = f"{sheet_name}:{row_num_int}"
+            equipment = equipment_data.get(key, {})
+
+            record = {
+                'date': today_str,
+                'timestamp': timestamp,
+                'sheet': equipment.get('sheet', sheet_name),
+                'row': equipment.get('row', row_num_int),
+                'designation': equipment.get('designation', ''),
+                'name': equipment.get('name', ''),
+                'object': equipment.get('object', '')
+            }
+            history.setdefault('serviced_equipment', []).append(record)
+            existing_today.add(dedup_key)
+            added += 1
+            self.logger.log(
+                f"📝 Ручная отметка в журнал: {record['designation']} ({record['object']})"
+            )
+
+        # Очищаем записи старше CHART_DAYS (консистентно с add_serviced_records)
+        cutoff_date = (datetime.now().date() - timedelta(days=self.config.CHART_DAYS)).isoformat()
+        original_count = len(history['serviced_equipment'])
+        history['serviced_equipment'] = [
+            rec for rec in history['serviced_equipment']
+            if rec.get('date', '') >= cutoff_date
+        ]
+        if len(history['serviced_equipment']) < original_count:
+            self.logger.log(
+                f"🗑️ Удалено {original_count - len(history['serviced_equipment'])} устаревших записей"
+            )
+
+        if added > 0:
+            self.save_serviced_history(history)
+
+        # Обновляем снимок дат ТО, чтобы scheduled-запуск не создал дубль
+        try:
+            current_snapshot = self.create_snapshot(excel_file_path)
+            self.save_snapshot(current_snapshot)
+        except Exception as e:
+            self.logger.log(f"⚠️ Не удалось обновить снимок после ручной отметки: {e}")
+
+        return added
+
 # --- 6. Генерация отчета ---
 class ReportGenerator:
     """Класс для генерации HTML-отчета."""
