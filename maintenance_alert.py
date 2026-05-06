@@ -21,7 +21,7 @@ from typing import Dict, List, Tuple, Optional, Any, NamedTuple
 # --- 1. Конфигурация и константы ---
 class Config:
     """Класс для хранения всех конфигурационных данных."""
-    VERSION = "2.7.0"
+    VERSION = "2.7.1"
     RELEASE_DATE = "02.05.2026"
 
     PROGRAM_DIR = Path(__file__).parent.absolute()
@@ -59,6 +59,7 @@ class Config:
     STATUS_OK = "Не требуется"
     
     CHART_DAYS = 62  # Количество дней отображаемых в диаграмме
+    HISTORY_MAX_DAYS = 180  # Глубина хранения истории обслуживания (6 месяцев ≈ 180 дней)
 
     @classmethod
     def get_excel_file_path(cls) -> Path:
@@ -626,8 +627,8 @@ class StatisticsManager:
                 config['maintenance_history'].append(maintenance_record)
                 action = "добавлена"
 
-            if len(config['maintenance_history']) > 120:
-                config['maintenance_history'] = config['maintenance_history'][-100:]
+            if len(config['maintenance_history']) > self.config.HISTORY_MAX_DAYS + 5:
+                config['maintenance_history'] = config['maintenance_history'][-self.config.HISTORY_MAX_DAYS:]
 
             self.save_config(config)
             self.logger.log(f"✅ Запись за {today.strftime('%d.%m.%Y')} {action}: {ok_count} обслужено")
