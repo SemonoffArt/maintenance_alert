@@ -211,7 +211,40 @@ def dashboard():
 @app.route("/stats")
 def stats():
     stats_data = statistics_manager.get_statistics()
-    return render_template("stats.html", config=config, stats=stats_data)
+
+    # chart_date / offset handling (same logic as dashboard)
+    chart_date = request.args.get("chart_date", "").strip()
+    chart_offset = 0
+    if chart_date:
+        try:
+            selected_date = datetime.strptime(chart_date, "%Y-%m-%d").date()
+            today = datetime.now().date()
+            chart_offset = (selected_date - today).days
+        except ValueError:
+            chart_date = ""
+            chart_offset = 0
+    if not chart_date:
+        chart_date = datetime.now().strftime("%Y-%m-%d")
+
+    # Serviced equipment log for the last CHART_DAYS days
+    serviced_records = serviced_equipment_manager.get_serviced_last_days(config.CHART_DAYS)
+    serviced_by_date = {}
+    for record in serviced_records:
+        date_str = record.get('date', '')
+        if date_str not in serviced_by_date:
+            serviced_by_date[date_str] = []
+        serviced_by_date[date_str].append(record)
+    serviced_by_date = dict(sorted(serviced_by_date.items(), reverse=True))
+
+    return render_template(
+        "stats.html",
+        config=config,
+        stats=stats_data,
+        chart_date=chart_date,
+        chart_offset=chart_offset,
+        serviced_records=serviced_records,
+        serviced_by_date=serviced_by_date,
+    )
 
 
 @app.route("/settings")

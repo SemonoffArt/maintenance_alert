@@ -69,9 +69,151 @@
 </div>
 
 <div class="card">
-    <div class="section-title">Диаграмма по дням (последние 62 дня)</div>
+    <div class="section-title">Диаграмма по дням (последние {{ config.CHART_DAYS }} дня)</div>
     <hr class="section-separator">
-    <img src="{{ url_for('chart_png') }}" alt="Диаграмма статусов" style="max-width:100%; border-radius:6px;">
+    <div style="margin-top:10px;">
+        <img id="chart-image" src="{{ url_for('chart_png') }}?offset={{ chart_offset }}" alt="Диаграмма статусов" style="max-width:100%; border-radius:6px;">
+        <div style="display:flex; align-items:center; gap:10px; margin-top:8px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <button type="button" id="prev-week-btn" class="btn btn-primary" style="padding:6px 12px;" title="Назад на 7 дней">◀ -7д</button>
+                <input type="date" name="chart_date" id="chart_date" value="{{ chart_date }}" style="padding:6px 10px; border-radius:4px; border:1px solid #cfd8dc; font-size:13px;">
+                <button type="button" id="next-week-btn" class="btn btn-primary" style="padding:6px 12px;" title="Вперёд на 7 дней">+7д ▶</button>
+                <button type="button" id="today-chart-btn" class="btn btn-primary" style="padding:6px 12px;">📅 Сегодня</button>
+            </div>
+        </div>
+    </div>
 </div>
+
+<script>
+// Dynamic chart reloading without page refresh
+(function() {
+    const chartImage = document.getElementById('chart-image');
+    const chartDateInput = document.getElementById('chart_date');
+    const todayBtn = document.getElementById('today-chart-btn');
+    const prevWeekBtn = document.getElementById('prev-week-btn');
+    const nextWeekBtn = document.getElementById('next-week-btn');
+
+    function calculateOffset(dateStr) {
+        if (!dateStr) return 0;
+        const selectedDate = new Date(dateStr);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        selectedDate.setHours(0, 0, 0, 0);
+        const diffTime = selectedDate - today;
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays;
+    }
+
+    function formatDate(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return year + '-' + month + '-' + day;
+    }
+
+    function updateChart(dateStr) {
+        const offset = calculateOffset(dateStr);
+        const timestamp = new Date().getTime();
+        chartImage.src = "{{ url_for('chart_png') }}?offset=" + offset + "&t=" + timestamp;
+    }
+
+    function adjustDate(daysToAdd) {
+        const currentDate = chartDateInput.value ? new Date(chartDateInput.value) : new Date();
+        currentDate.setDate(currentDate.getDate() + daysToAdd);
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        currentDate.setHours(0, 0, 0, 0);
+
+        if (currentDate > today) {
+            currentDate.setTime(today.getTime());
+        }
+
+        const newDateStr = formatDate(currentDate);
+        chartDateInput.value = newDateStr;
+        updateChart(newDateStr);
+    }
+
+    // Initialize: if date picker shows a past date, update to today and reload chart
+    function initializeToToday() {
+        const currentValue = chartDateInput.value;
+        const today = new Date();
+        const todayStr = formatDate(today);
+
+        if (currentValue !== todayStr) {
+            chartDateInput.value = todayStr;
+            updateChart(todayStr);
+        }
+    }
+
+    initializeToToday();
+
+    todayBtn.addEventListener('click', function() {
+        const today = new Date();
+        const todayStr = formatDate(today);
+        chartDateInput.value = todayStr;
+        updateChart(todayStr);
+    });
+
+    prevWeekBtn.addEventListener('click', function() {
+        adjustDate(-7);
+    });
+
+    nextWeekBtn.addEventListener('click', function() {
+        adjustDate(7);
+    });
+
+    chartDateInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            updateChart(chartDateInput.value);
+        }
+    });
+
+    chartDateInput.addEventListener('change', function() {
+        updateChart(chartDateInput.value);
+    });
+})();
+</script>
+
+{% if serviced_by_date and serviced_by_date|length > 0 %}
+<div class="card">
+    <div class="section-title">
+        📝 Журнал обслуженного оборудования (за последние {{ config.CHART_DAYS }} дней)
+    </div>
+
+    {% for date_str, records in serviced_by_date.items() %}
+    <div style="margin-top: 15px;">
+        <div style="background-color: #2c3e50; color: white; padding: 8px 12px; border-radius: 4px; font-weight: bold; font-size: 14px;">
+            📅 {{ date_str }} ({{ records|length }} ед.)
+        </div>
+        <div style="overflow-x:auto; margin-top: 5px;">
+            <table style="width:100%; border-collapse:collapse; font-size:13px; table-layout:fixed;">
+                <thead>
+                    <tr style="background-color:#f8f9fa; color:#2c3e50;">
+                        <th style="padding:8px; border:1px solid #cfd8dc; text-align:left; width:150px;">Объект</th>
+                        <th style="padding:8px; border:1px solid #cfd8dc; text-align:left; width:200px;">Обозначение</th>
+                        <th style="padding:8px; border:1px solid #cfd8dc; text-align:left;">Наименование</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in records %}
+                    <tr style="background-color: {{ loop.cycle('#ffffff', '#f9f9f9') }};">
+                        <td style="padding:8px; border:1px solid #cfd8dc; width:150px;">{{ record.object }}</td>
+                        <td style="padding:8px; border:1px solid #cfd8dc; width:200px;"><strong>{{ record.designation }}</strong></td>
+                        <td style="padding:8px; border:1px solid #cfd8dc;">{{ record.name }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endfor %}
+
+    <div style="padding:10px; text-align:right; margin-top:10px; border-top:1px solid #eceff1; font-size:12px; color:#7f8c8d;">
+        Всего записей: {{ serviced_records|length }}
+    </div>
+</div>
+{% endif %}
 
 {% endblock %}
