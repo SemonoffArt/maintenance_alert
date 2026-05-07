@@ -22,7 +22,7 @@ from typing import Dict, List, Tuple, Optional, Any, NamedTuple
 class Config:
     """Класс для хранения всех конфигурационных данных."""
     VERSION = "2.7.1"
-    RELEASE_DATE = "02.05.2026"
+    RELEASE_DATE = "07.05.2026"
 
     PROGRAM_DIR = Path(__file__).parent.absolute()
     DATA_DIR = PROGRAM_DIR / "data"
